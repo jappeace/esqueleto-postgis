@@ -1,7 +1,5 @@
-# I used chatgpt to generate this esqueleto-postgis and then just
-# modified to how I normally use these things.
 {
-  description = "My Haskell project";
+  description = "esqueleto postgis";
 
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs/nixpkgs-unstable";
@@ -16,7 +14,7 @@
       pkgs = nixpkgs.legacyPackages.x86_64-linux;
       hpkgs = pkgs.haskellPackages.override {
         overrides = hnew: hold: {
-          esqueleto-postgis = hnew.callCabal2nix "esqueleto-postgis ./. { };
+          esqueleto-postgis = hnew.callCabal2nix "esqueleto-postgis" ./. { };
         };
       };
     in
@@ -24,7 +22,7 @@
       defaultPackage.x86_64-linux =  hpkgs.esqueleto-postgis-project;
       inherit pkgs;
       devShell.x86_64-linux = hpkgs.shellFor {
-        packages = ps : [ ps."esqueleto-postgis" ];
+        packages = ps : [ ps.esqueleto-postgis ];
         withHoogle = true;
 
         buildInputs = [

@@ -10,7 +10,7 @@ homepage:       https://github.com/jappeace/esqueleto-postgis#readme
 bug-reports:    https://github.com/jappeace/esqueleto-postgis/issues
 author:         Jappie Klooster
 maintainer:     jappieklooster@hotmail.com
-copyright:      2020 Jappie Klooster
+copyright:      2024 Jappie Klooster
 license:        MIT
 license-file:   LICENSE
 build-type:     Simple
