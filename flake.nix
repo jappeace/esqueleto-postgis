@@ -1,4 +1,4 @@
-# I used chatgpt to generate this template and then just
+# I used chatgpt to generate this esqueleto-postgis and then just
 # modified to how I normally use these things.
 {
   description = "My Haskell project";
@@ -16,15 +16,15 @@
       pkgs = nixpkgs.legacyPackages.x86_64-linux;
       hpkgs = pkgs.haskellPackages.override {
         overrides = hnew: hold: {
-          template-project = hnew.callCabal2nix "template-project" ./. { };
+          esqueleto-postgis = hnew.callCabal2nix "esqueleto-postgis ./. { };
         };
       };
     in
     {
-      defaultPackage.x86_64-linux =  hpkgs.template-project;
+      defaultPackage.x86_64-linux =  hpkgs.esqueleto-postgis-project;
       inherit pkgs;
       devShell.x86_64-linux = hpkgs.shellFor {
-        packages = ps : [ ps."template-project" ];
+        packages = ps : [ ps."esqueleto-postgis" ];
         withHoogle = true;
 
         buildInputs = [
