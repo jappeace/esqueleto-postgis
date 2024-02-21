@@ -15,6 +15,7 @@
       hpkgs = pkgs.haskellPackages.override {
         overrides = hnew: hold: {
           esqueleto-postgis = hnew.callCabal2nix "esqueleto-postgis" ./. { };
+          wkt-geom = pkgs.haskell.lib.doJailbreak (pkgs.haskell.lib.markUnbroken hold.wkt-geom);
         };
       };
     in
@@ -23,7 +24,7 @@
       inherit pkgs;
       devShell.x86_64-linux = hpkgs.shellFor {
         packages = ps : [ ps.esqueleto-postgis ];
-        withHoogle = true;
+        withHoogle = false;
 
         buildInputs = [
           hpkgs.haskell-language-server
