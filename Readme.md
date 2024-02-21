@@ -1,11 +1,12 @@
 [![https://jappieklooster.nl](https://img.shields.io/badge/blog-jappieklooster.nl-lightgrey)](https://jappieklooster.nl/tag/haskell.html)
-[![Jappiejappie](https://img.shields.io/badge/twitch.tv-jappiejappie-purple?logo=twitch)](https://www.twitch.tv/jappiejappie)
-[![Jappiejappie](https://img.shields.io/badge/youtube-jappieklooster-red?logo=youtube)](https://www.youtube.com/channel/UCQxmXSQEYyCeBC6urMWRPVw)
 [![Githbu actions build status](https://img.shields.io/github/workflow/status/jappeace/haskell-template-project/Test)](https://github.com/jappeace/haskell-template-project/actions)
 [![Jappiejappie](https://img.shields.io/badge/discord-jappiejappie-black?logo=discord)](https://discord.gg/Hp4agqy)
-[![Hackage version](https://img.shields.io/hackage/v/template.svg?label=Hackage)](https://hackage.haskell.org/package/template) 
+[![Hackage version](https://img.shields.io/hackage/v/esqueleto-postgis.svg?label=Hackage)](https://hackage.haskell.org/package/esqueleto-postgis) 
 
-> The eye that looks ahead to the safe course is closed forever.
+> Show me the place where space is not.
+
+Implement postgis functionality for esqueleto.
+https://postgis.net/
 
 Haskell project template.
 
@@ -39,14 +40,14 @@ git clone git@github.com:jappeace/haskell-template-project.git new-project
 cd new-project
 ```
 
-+ [ ] Edit template.cabal,
-    + [ ] find and replace template with `new-project`
-    + [ ] Update copyright
-    + [ ] Update github
-+ [ ] rename template.cabal to new-project.cabal
-+ [ ] Edit Changelog.md
-  + [ ] replace template with `new-project`
-  + [ ] Also describe your version 1.0.0 release.
++ [x] Edit template.cabal,
+    + [x] find and replace template with `new-project`
+    + [x] Update copyright
+    + [x] Update github
++ [x] rename template.cabal to new-project.cabal
++ [x] Edit Changelog.md
+  + [x] replace template with `new-project`
+  + [x] Also describe your version 1.0.0 release.
 + [ ] Edit flake.nix, replace template with `new-project`.
 + [ ] Edit copyright in LICENSE
 + [ ] For automatic bound bumping: In “Settings” → “Actions” → “General” → “Workflow permissions” tick “Allow GitHub Actions to create and approve pull requests”
