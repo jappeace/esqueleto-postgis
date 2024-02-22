@@ -11,18 +11,13 @@ module Database.Esqueleto.Postgis (
 ) where
 
 import Data.Geospatial(GeospatialGeometry, GeoPoint (..))
-import Data.Ewkb(parseHexByteString, toByteString)
+import Data.Ewkb(parseHexByteString)
 import Data.Hex(Hex(..))
-import qualified Data.Sequence as Seq
--- import Data.Wkb(toByteString)
 import Database.Esqueleto.Experimental(SqlExpr, Value)
-import Data.Internal.Ewkb.Geometry
 import Database.Persist.Sql
 import Database.Esqueleto.Internal.Internal(unsafeSqlFunction)
 import Data.Text(pack, Text)
 import Data.Bifunctor(first)
-import Data.Internal.Wkb.Endian(EndianType(..))
-import Data.Text.Encoding(decodeUtf8)
 import Data.LineString (LineString)
 import GHC.Base (NonEmpty)
 import Data.LinearRing (LinearRing)
