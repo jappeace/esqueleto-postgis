@@ -58,6 +58,10 @@ import Database.Persist.TH
        (mkMigrate, mkPersist, persistUpperCase, share, sqlSettings)
 import Data.Geospatial (PointXY(..))
 import Data.List.NonEmpty (NonEmpty)
+import Data.Sequence (Seq)
+import qualified Data.Sequence as Seq
+import Data.LineString (LineString, makeLineString)
+import Data.LinearRing (LinearRing, makeLinearRing)
 
 connString :: ConnectionString
 connString = "host=localhost port=5432 user=test dbname=test password=test"
@@ -89,10 +93,10 @@ main = defaultMain tests
 tests :: TestTree
 tests = testGroup "Tests" [unitTests]
 
-test' :: Int -> TestTree
-test' ix =
-    testCase ("List comparison (different length)" <> show ix) $ do
-        someUnit <- Gen.sample genUnit
+test' :: Gen (PostgisGeometry PointXY) -> TestTree
+test' gen =
+    testCase ("List comparison (different length)") $ do
+        someUnit <- Gen.sample (Unit <$> gen)
         result <- runDB $ do
           insert someUnit
           selectList @(Unit) [] []
@@ -100,12 +104,9 @@ test' ix =
 
 unitTests :: TestTree
 unitTests = testGroup "Unit tests" $
-   (test') <$> [0..10]
+   (test') <$> (genCollection : genGeometry)
 
-
-genUnit :: Gen Unit
-genUnit = Unit <$> genGeometry
-
+genDouble :: Gen Double
 genDouble = Gen.double (Range.exponentialFloat (-10) 10)
 
 genPoint :: Gen PointXY
@@ -114,10 +115,32 @@ genPoint = PointXY <$> genDouble <*> genDouble
 genPoints :: Gen (NonEmpty PointXY)
 genPoints = Gen.nonEmpty (Range.constant 1 10) genPoint
 
-genGeometry :: Gen (PostgisGeometry PointXY)
-genGeometry = do
-  Gen.choice [
+genSeq :: Gen (Seq PointXY)
+genSeq = Seq.fromList <$> Gen.list (Range.constant 0 10) genPoint
+
+genLineString :: Gen (LineString PointXY)
+genLineString = makeLineString <$> genPoint <*> genPoint <*> genSeq
+
+genMultiLineString :: Gen (NonEmpty (LineString PointXY))
+genMultiLineString = Gen.nonEmpty (Range.constant 1 10) genLineString
+
+genLinearring :: Gen (LinearRing PointXY)
+genLinearring = makePolygon <$> genPoint <*> genPoint <*> genPoint <*> genSeq
+
+genMultiLinearring :: Gen (NonEmpty (LinearRing PointXY))
+genMultiLinearring = Gen.nonEmpty (Range.constant 1 10) genLinearring
+
+genCollection :: Gen (PostgisGeometry PointXY)
+genCollection = Collection <$> Gen.nonEmpty (Range.constant 1 10) (Gen.choice genGeometry)
+
+genGeometry :: [Gen (PostgisGeometry PointXY)]
+genGeometry =
+  [
     -- pure NoGeometry
      (Point <$> genPoint ),
-     (MultiPoint <$> genPoints)
+     (MultiPoint <$> genPoints),
+     (Line <$> genLineString),
+     (Multiline <$> genMultiLineString),
+     (Polygon <$> genLinearring),
+     (MultiPolygon <$> genMultiLinearring)
              ]

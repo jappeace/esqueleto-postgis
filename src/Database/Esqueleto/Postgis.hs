@@ -8,8 +8,11 @@ module Database.Esqueleto.Postgis (
   st_point,
   -- st_polygon
   PostgisGeometry(..)
+  , makePolygon
 ) where
 
+import Data.Sequence qualified as Seq
+import Data.Sequence(Seq(..), (|>))
 import Data.Geospatial(GeospatialGeometry, GeoPoint (..))
 import Data.Ewkb(parseHexByteString)
 import Data.Hex(Hex(..))
@@ -20,7 +23,7 @@ import Data.Text(pack, Text)
 import Data.Bifunctor(first)
 import Data.LineString (LineString)
 import GHC.Base (NonEmpty)
-import Data.LinearRing (LinearRing)
+import Data.LinearRing (LinearRing, makeLinearRing, toSeq)
 import Data.Geospatial.Internal.BasicTypes (PointXY)
 import Data.Geospatial (GeoPositionWithoutCRS)
 import Data.Geospatial (GeoPositionWithoutCRS(..))
@@ -35,6 +38,7 @@ import Data.Text.Lazy (toStrict)
 import qualified Data.List.NonEmpty as Non
 import Data.Foldable (fold, Foldable (toList))
 import Data.List.NonEmpty (nonEmpty)
+import qualified Data.List as List
 
 tshow :: Show a => a -> Text
 tshow = pack . show
@@ -44,10 +48,10 @@ tshow = pack . show
 --   so PointXY indicates a 2 dimension space, and PointXYZ a three dimension space.
 data PostgisGeometry point = Point point
                       | MultiPoint (NonEmpty point )
-                      | Polygon (LinearRing point )
-                      | MultiPolygon (NonEmpty (LinearRing point ))
                       | Line (LineString point )
                       | Multiline (NonEmpty (LineString point))
+                      | Polygon (LinearRing point )
+                      | MultiPolygon (NonEmpty (LinearRing point ))
                       | Collection (NonEmpty (PostgisGeometry point))
                       deriving (Show, Functor, Eq)
 
@@ -56,7 +60,23 @@ data GeomErrors = MismatchingDimensionsXYZ PointXYZ
                 | NoGeometry
                 | EmptyPoint
                 | NotImplemented
+                | EmptyMultiline
+                | EmptyMultiPoint
+                | NotEnoughElements (Seq PointXY)
+                | EmptyMultipolygon
+                | EmptyCollection
                 deriving Show
+
+-- | checks if the first point is the last, and if not so makes it so.
+--   this is required for inserting into the database
+makePolygon :: (Eq point, Show point) => point -> point -> point -> Seq point -> LinearRing point
+makePolygon one two three other =
+  if Just one == last then
+    makeLinearRing  one two three other
+  else
+    makeLinearRing  one two three (other |> one)
+  where
+    last = Seq.lookup (length other) other
 
 from2dGeoPositionWithoutCRSToPoint :: GeoPositionWithoutCRS -> Either GeomErrors PointXY
 from2dGeoPositionWithoutCRSToPoint = \case
@@ -72,6 +92,14 @@ renderGeometry :: PostgisGeometry Text.Builder -> Text.Builder
 renderGeometry = \case
   Point point -> "POINT(" <> point <> ")"
   MultiPoint points -> "MULTIPOINT (" <> fold (Non.intersperse "," ((\x -> "(" <> x <> ")" ) <$> points)) <> ")"
+  Line line -> "LINESTRING(" <> renderLines line <> ")"
+  Multiline (multiline) -> "MULTILINESTRING(" <> fold (Non.intersperse "," ((\ line -> "(" <> renderLines line <> ")") <$> multiline)) <>")"
+  Polygon polygon -> "POLYGON((" <> renderLines polygon <> "))"
+  MultiPolygon multipolygon -> "MULTIPOLYGON(" <> fold (Non.intersperse "," ((\ line -> "((" <> renderLines line <> "))") <$> multipolygon))<> ")"
+  Collection collection -> "GEOMETRYCOLLECTION("<> fold (Non.intersperse "," (renderGeometry <$> collection)) <>  ")"
+
+renderLines :: Foldable f => f Text.Builder -> Text.Builder
+renderLines line = fold (List.intersperse "," $ toList line)
 
 from2dGeospatialGeometry :: GeospatialGeometry -> Either GeomErrors (PostgisGeometry PointXY)
 from2dGeospatialGeometry = \case
@@ -80,10 +108,33 @@ from2dGeospatialGeometry = \case
   Geospatial.MultiPoint (Geospatial.GeoMultiPoint points) -> do
     list' <- sequence $ toList (from2dGeoPositionWithoutCRSToPoint <$> points)
     case nonEmpty list' of
-      Nothing -> Left NoGeometry
+      Nothing -> Left EmptyMultiPoint
       Just x -> Right $ MultiPoint x
-  _ -> Left NotImplemented
+  Geospatial.Line (Geospatial.GeoLine linestring) -> Line <$> traverse from2dGeoPositionWithoutCRSToPoint linestring
+  Geospatial.MultiLine (Geospatial.GeoMultiLine multiline) -> do
+    seqRes <- traverse (traverse from2dGeoPositionWithoutCRSToPoint) multiline
+    case Non.nonEmpty (toList seqRes) of
+      Just nonEmpty -> Right $ Multiline nonEmpty
+      Nothing -> Left EmptyMultiline
+  Geospatial.Polygon (Geospatial.GeoPolygon polygon) -> Polygon <$> toLinearRing polygon
+  Geospatial.MultiPolygon (Geospatial.GeoMultiPolygon multipolygon) -> do
+    seqRings <- traverse toLinearRing multipolygon
+    case Non.nonEmpty (toList seqRings ) of
+      Just nonEmpty -> Right $ MultiPolygon nonEmpty
+      Nothing -> Left EmptyMultipolygon
 
+  Geospatial.Collection seq -> do
+    seqs <- traverse from2dGeospatialGeometry seq
+    case Non.nonEmpty (toList seqs ) of
+      Just nonEmpty -> Right $ Collection nonEmpty
+      Nothing -> Left EmptyCollection
+
+toLinearRing ::  Seq (LinearRing GeoPositionWithoutCRS) -> Either GeomErrors (LinearRing PointXY)
+toLinearRing polygon = do
+    aSeq <- traverse from2dGeoPositionWithoutCRSToPoint (foldMap toSeq polygon)
+    case aSeq of
+      (one :<| two :<| three :<| rem) -> Right $ makeLinearRing  one two three rem
+      other -> Left (NotEnoughElements other)
 
 instance PersistField (PostgisGeometry PointXY) where
   toPersistValue geom =
