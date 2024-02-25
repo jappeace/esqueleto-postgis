@@ -47,6 +47,8 @@ test = testCase ("it finds the one unit with st_contains") $ do
                 unit <- from $ table @Unit
                 where_ $ unit ^. UnitGeom `st_contains` (val $ Point (PointXY 1 1))
                 pure countRows
+
+            -- expectation, the result should be 1
             unValue <$> result @?= (Just (1 :: Int)),
 ```
 
