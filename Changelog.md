@@ -1,5 +1,10 @@
 # Change log for esqueleto-postgis project
 
+## Version 1.0.1 
++ fix insane bounds by cabal genbounds. 
+  I think this was caused due to running it from the flake which
+  takes a bunch of outdated packages from stackage.
+
 ## Version 1.0.0 
 + add st_contains
 + add st_intersects

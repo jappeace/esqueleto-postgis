@@ -15,6 +15,11 @@ for roundtripping.
 Then the esqueleto combinators are defined around this datatype.
 
 # Tutorial
+Make sure to enable to postgis extension on your database (it's activated per database):
+```sql
+CREATE EXTENSION postgis;
+```
+
 you can specify some posgis geometry,
 use the point to nidicate dimensions, 
 pointxy = 2 dimensions
@@ -35,7 +40,7 @@ share
 
 then you can simply query on tat datatype:
 
-```
+```haskell
 test = testCase ("it finds the one unit with st_contains") $ do
             result <- runDB $ do
               _ <- insert $

@@ -88,7 +88,7 @@ tests = testGroup "Tests" [unitTests]
 
 test' :: Gen (PostgisGeometry PointXY) -> TestTree
 test' gen =
-  testCase ("List comparison (different length)") $ do
+  testCase "roundtrip xy geometry" $ do
     someUnit <- Gen.sample (Unit <$> gen)
     result <- runDB $ do
       _ <- insert someUnit
@@ -97,7 +97,7 @@ test' gen =
 
 testxyz :: Gen (PostgisGeometry PointXYZ) -> TestTree
 testxyz gen =
-  testCase ("List comparison (different length)") $ do
+  testCase "roundtrip xyz geometry" $ do
     someUnit <- Gen.sample (Unityz <$> gen)
     result <- runDB $ do
       _ <-  insert someUnit
@@ -106,7 +106,7 @@ testxyz gen =
 
 testxyzm :: Gen (PostgisGeometry PointXYZM) -> TestTree
 testxyzm gen =
-  testCase ("List comparison (different length)") $ do
+  testCase "roundtryp xyzm geometry" $ do
     someUnit <- Gen.sample (Unityzm <$> gen)
     result <- runDB $ do
       _ <- insert someUnit
