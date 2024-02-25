@@ -51,10 +51,13 @@
           virtualisation.memorySize = 2048;
           virtualisation.diskSize = 1024;
           services.postgresql = {
+            package = (pkgs.postgresql.withPackages (p: [ p.postgis ]));
             enable = true;
             initialScript = pkgs.writeText "psql-init" ''
               CREATE USER test WITH SUPERUSER PASSWORD 'test';
               CREATE DATABASE test WITH OWNER test;
+              \c test;
+              CREATE EXTENSION postgis;
             '';
           };
         };
