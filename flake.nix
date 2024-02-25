@@ -42,7 +42,7 @@
           server.wait_for_unit("postgresql.service")
           print(
               server.succeed(
-                  "${package}/bin/test/spec --fail-on-focused"
+                  "${package}/bin/test/unit
               )
           )
         '';
