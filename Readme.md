@@ -1,5 +1,5 @@
 [![https://jappieklooster.nl](https://img.shields.io/badge/blog-jappieklooster.nl-lightgrey)](https://jappieklooster.nl/tag/haskell.html)
-[![Githbu actions build status](https://img.shields.io/github/workflow/status/jappeace/haskell-template-project/Test)](https://github.com/jappeace/haskell-template-project/actions)
+[![Githbu actions build status](https://img.shields.io/github/workflow/status/jappeace/esqueleto-postgis/Test)](https://github.com/jappeace/esqueleto-postgis/actions)
 [![Jappiejappie](https://img.shields.io/badge/discord-jappiejappie-black?logo=discord)](https://discord.gg/Hp4agqy)
 [![Hackage version](https://img.shields.io/hackage/v/esqueleto-postgis.svg?label=Hackage)](https://hackage.haskell.org/package/esqueleto-postgis) 
 
