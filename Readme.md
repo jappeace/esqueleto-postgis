@@ -5,7 +5,7 @@
 
 > Show me the place where space is not.
 
-Implement postgis functionality for esqueleto.
+Implement (partial) postgis functionality for esqueleto.
 https://postgis.net/
 
 uses wkt-geom to get a persistent instance,
@@ -13,6 +13,48 @@ then maps that to a custom datatype 'PostgisGeometry' which is valid
 for roundtripping.
 
 Then the esqueleto combinators are defined around this datatype.
+
+# Tutorial
+you can specify some posgis geometry,
+use the point to nidicate dimensions, 
+pointxy = 2 dimensions
+pointxyz = 3, pointxyzm = 4.
+The library forces you to work in the same dimensions.
+
+You can specify a table with the custom datatype, which will have geometry as sql type:
+
+```haskell
+share
+  [mkPersist sqlSettings, mkMigrate "migrateAll"]
+  [persistUpperCase|
+  Unit sql=unit
+    geom       (PostgisGeometry PointXY)
+    deriving Eq Show
+|]
+```
+
+then you can simply query on tat datatype:
+
+```
+test = testCase ("it finds the one unit with st_contains") $ do
+            result <- runDB $ do
+              _ <- insert $
+                Unit
+                  { unitGeom = Polygon $ makePolygon (PointXY 0 0) (PointXY 0 2) (PointXY 2 2) $ Seq.fromList [(PointXY 2 0)]
+                  }
+
+              selectOne $ do
+                unit <- from $ table @Unit
+                where_ $ unit ^. UnitGeom `st_contains` (val $ Point (PointXY 1 1))
+                pure countRows
+            unValue <$> result @?= (Just (1 :: Int)),
+```
+
+# Contributing
+contributions are welcome.
+There are still many bindings missing!
+
+# Hacking
 
 ### Tools
 Enter the nix shell.
