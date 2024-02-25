@@ -14,14 +14,51 @@
       pkgs = nixpkgs.legacyPackages.x86_64-linux;
       hpkgs = pkgs.haskellPackages.override {
         overrides = hnew: hold: {
-          esqueleto-postgis = hnew.callCabal2nix "esqueleto-postgis" ./. { };
+          esqueleto-postgis = pkgs.haskell.lib.overrideCabal (hnew.callCabal2nix "esqueleto-postgis" ./. { }) {
+            postBuild = ''
+                echo "entering the phase"
+                mkdir -p $out/bin/test
+                cp ./dist/build/unit/unit $out/bin/test/unit
+            '';
+
+            checkPhase = ''
+            echo "ran by flake :)"
+            '';
+          };
           wkt-geom = pkgs.haskell.lib.doJailbreak (pkgs.haskell.lib.markUnbroken hold.wkt-geom);
         };
       };
+      package = hpkgs.esqueleto-postgis;
     in
     {
-      defaultPackage.x86_64-linux =  hpkgs.esqueleto-postgis-project;
+      defaultPackage.x86_64-linux =  package;
       inherit pkgs;
+
+      checks.x86_64-linux.tests =  pkgs.nixosTest {
+        name = "esqueleto-test";
+
+        testScript = ''
+          server.start()
+          server.wait_for_unit("postgresql.service")
+          print(
+              server.succeed(
+                  "${package}/bin/test/spec --fail-on-focused"
+              )
+          )
+        '';
+        nodes.server = {
+
+          virtualisation.memorySize = 2048;
+          virtualisation.diskSize = 1024;
+          services.postgresql = {
+            enable = true;
+            initialScript = pkgs.writeText "psql-init" ''
+              CREATE USER test WITH SUPERUSER PASSWORD 'test';
+              CREATE DATABASE test WITH OWNER test;
+            '';
+          };
+        };
+      };
       devShell.x86_64-linux = hpkgs.shellFor {
         packages = ps : [ ps.esqueleto-postgis ];
         withHoogle = false;
