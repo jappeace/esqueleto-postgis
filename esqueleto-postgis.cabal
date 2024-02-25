@@ -12,11 +12,15 @@ author:         Jappie Klooster
 maintainer:     jappieklooster@hotmail.com
 copyright:      2024 Jappie Klooster
 license:        MIT
+synopsis:       postgis bindings for esqueleto.
+description:       postgis bindings for esqueleto. Makes postgres a spatial database but now typesafely
+category: Database
 license-file:   LICENSE
 build-type:     Simple
 extra-source-files:
     Readme.md
     LICENSE
+extra-doc-files:
     Changelog.md
 
 source-repository head
@@ -47,7 +51,7 @@ common common-options
       NumericUnderscores
 
   ghc-options:
-    -O2 -Wall  -Wincomplete-uni-patterns
+    -Wall  -Wincomplete-uni-patterns
     -Wincomplete-record-updates -Widentities -Wredundant-constraints
     -Wcpp-undef -fwarn-tabs -Wpartial-fields
     -fdefer-diagnostics -Wunused-packages
@@ -55,13 +59,14 @@ common common-options
     -fno-omit-yields
 
   build-depends:
-      base >=4.9.1.0 && <4.18.0.0 || ^>=4.19.0
-      , geojson
-      , wkt-geom
-      , esqueleto
-      , persistent
-      , text
-      , containers
+      base >=4.9.1.0 && <4.20.0.0,
+      containers >= 0.6.5 && < 0.7,
+      esqueleto >= 3.5.10 && < 3.6,
+      text >= 1.2.5 && < 1.3,
+      persistent >= 2.13.3 && < 2.14,
+      geojson >= 4.1.1 && < 4.2,
+      wkt-geom >= 0.0.12 && < 0.1,
+
 
   default-language: Haskell2010
 
