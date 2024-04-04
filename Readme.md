@@ -15,6 +15,20 @@ for roundtripping.
 Then the esqueleto combinators are defined around this datatype.
 
 # Tutorial
+
+most linux distributions support this out of the box.
+nixos needs some special care:
+```nix
+services.postgresql = {
+   enable = true;
+   package = (pkgs.postgresql_12.withPackages (p: [ p.postgis ]));
+};
+```
+For mac you've to [install](https://postgis.net/documentation/getting_started/install_macos/) postgis.
+```sh
+brew install postgis
+```
+
 Make sure to enable to postgis extension on your database (it's activated per database):
 ```sql
 CREATE EXTENSION postgis;
