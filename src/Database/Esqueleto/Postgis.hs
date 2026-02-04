@@ -7,12 +7,15 @@
 module Database.Esqueleto.Postgis
   ( PostgisGeometry (..),
     makePolygon,
+    getPoints,
 
     -- * functions
     st_contains,
     st_intersects,
+    st_union,
 
     -- * points
+    point,
     st_point,
     st_point_xyz,
     st_point_xyzm,
@@ -25,8 +28,8 @@ import Data.Foldable (Foldable (toList), fold)
 import Data.Geospatial (GeoPoint (..), GeoPositionWithoutCRS (..), GeospatialGeometry, PointXY (..), PointXYZ, PointXYZM)
 import Data.Geospatial qualified as Geospatial
 import Data.Hex (Hex (..))
-import Data.LineString (LineString)
-import Data.LinearRing (LinearRing, makeLinearRing, toSeq)
+import Data.LineString (LineString, lineStringHead)
+import Data.LinearRing (LinearRing, makeLinearRing, toSeq, ringHead)
 import Data.List qualified as List
 import Data.List.NonEmpty (nonEmpty)
 import Data.List.NonEmpty qualified as Non
@@ -43,6 +46,28 @@ import Database.Persist.Sql
 import GHC.Base (NonEmpty)
 import Data.Geospatial (PointXYZM(..))
 import Data.Geospatial (PointXYZ(..))
+import Data.LineString( fromLineString )
+import Data.LinearRing(fromLinearRing )
+import qualified Data.Semigroup as S
+import Data.List.NonEmpty (NonEmpty((:|)))
+
+
+-- | unwrap postgis geometry so you can for example return it from an API
+getPoints :: PostgisGeometry point -> NonEmpty point
+getPoints geom = case geom of
+    Point p -> p :| []
+    MultiPoint pts -> pts
+    Line ls -> linestringNonEmpty ls
+    Multiline lss -> S.sconcat (fmap linestringNonEmpty lss)
+    Polygon ring -> linearRingNonEmpty ring
+    MultiPolygon rings -> S.sconcat (fmap linearRingNonEmpty rings)
+    Collection geoms -> S.sconcat (fmap getPoints geoms)
+
+linestringNonEmpty :: LineString a  -> NonEmpty a
+linestringNonEmpty ls = lineStringHead ls :| drop 1 (fromLineString ls)
+
+linearRingNonEmpty :: LinearRing a  -> NonEmpty a
+linearRingNonEmpty ls = ringHead ls :| drop 1 (fromLinearRing ls)
 
 tshow :: Show a => a -> Text
 tshow = pack . show
@@ -122,10 +147,20 @@ renderGeometry = \case
   Point point -> "POINT(" <> point <> ")"
   MultiPoint points -> "MULTIPOINT (" <> fold (Non.intersperse "," ((\x -> "(" <> x <> ")") <$> points)) <> ")"
   Line line -> "LINESTRING(" <> renderLines line <> ")"
-  Multiline (multiline) -> "MULTILINESTRING(" <> fold (Non.intersperse "," ((\line -> "(" <> renderLines line <> ")") <$> multiline)) <> ")"
+  Multiline multiline -> "MULTILINESTRING(" <> fold (Non.intersperse "," ((\line -> "(" <> renderLines line <> ")") <$> multiline)) <> ")"
   Polygon polygon -> "POLYGON((" <> renderLines polygon <> "))"
   MultiPolygon multipolygon -> "MULTIPOLYGON(" <> fold (Non.intersperse "," ((\line -> "((" <> renderLines line <> "))") <$> multipolygon)) <> ")"
   Collection collection -> "GEOMETRYCOLLECTION(" <> fold (Non.intersperse "," (renderGeometry <$> collection)) <> ")"
+
+extractFirst :: PostgisGeometry a -> a
+extractFirst = \case
+  Point point -> point
+  MultiPoint points -> Non.head points
+  Line line -> lineStringHead line
+  Multiline multiline -> lineStringHead $ Non.head multiline
+  Polygon polygon -> ringHead polygon
+  MultiPolygon multipolygon -> ringHead $ Non.head multipolygon
+  Collection collection -> extractFirst $ Non.head collection
 
 renderLines :: Foldable f => f Text.Builder -> Text.Builder
 renderLines line = fold (List.intersperse "," $ toList line)
@@ -164,6 +199,14 @@ toLinearRing interpreter polygon = do
   case aSeq of
     (one :<| two :<| three :<| rem') -> Right $ makeLinearRing one two three rem'
     _other -> Left NotEnoughElements
+
+
+instance PersistField PointXY where
+  toPersistValue geom = toPersistValue (Point geom)
+  fromPersistValue x = extractFirst <$> fromPersistValue x
+
+instance PersistFieldSql PointXY where
+  sqlType _ = SqlOther "geometry"
 
 instance PersistField (PostgisGeometry PointXY) where
   toPersistValue geom =
@@ -208,6 +251,24 @@ st_contains ::
   SqlExpr (Value Bool)
 st_contains a b = unsafeSqlFunction "ST_CONTAINS" (a, b)
 
+-- | allows union of geometries, eg group a bunch together, for example:
+--
+--   @
+--     SELECT *
+--     FROM target_table_to_query t
+--     WHERE ST_Intersects(
+--     t.geometry_column,
+--     (
+--         SELECT ST_Union(polygon)
+--         FROM grid_polygon_row
+--         WHERE label IN ('A1', 'A2', 'B5')
+--     )
+--     );
+--  @
+st_union :: SqlExpr (Value (PostgisGeometry a)) ->
+           SqlExpr (Value (PostgisGeometry a))
+st_union a = unsafeSqlFunction "ST_union" a
+
 -- | Returns true if two geometries intersect.
 --   Geometries intersect if they have any point in common.
 --   https://postgis.net/docs/ST_Intersects.html
@@ -216,6 +277,9 @@ st_intersects ::
   SqlExpr (Value (PostgisGeometry a)) ->
   SqlExpr (Value Bool)
 st_intersects a b = unsafeSqlFunction "ST_Intersects" (a, b)
+
+point :: Double -> Double -> (PostgisGeometry PointXY)
+point x y = Point (PointXY { _xyX = x, _xyY = y})
 
 st_point :: SqlExpr (Value Double) -> SqlExpr (Value Double) -> SqlExpr (Value (PostgisGeometry PointXY))
 st_point a b = unsafeSqlFunction "ST_POINT" (a, b)

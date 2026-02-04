@@ -17,6 +17,7 @@
 
 module Main where
 
+import Data.Text
 import Control.Monad.IO.Class
 import Control.Monad.Logger (MonadLogger (..), runStderrLoggingT)
 import Control.Monad.Trans.Resource (MonadThrow, ResourceT, runResourceT)
@@ -45,6 +46,7 @@ import qualified Hedgehog.Gen as Gen
 import qualified Hedgehog.Range as Range
 import Test.Tasty
 import Test.Tasty.HUnit
+import Data.LinearRing (LinearRing(..), makeLinearRing )
 
 connString :: ConnectionString
 connString = "host=localhost port=5432 user=test dbname=test password=test"
@@ -53,6 +55,10 @@ connString = "host=localhost port=5432 user=test dbname=test password=test"
 share
   [mkPersist sqlSettings, mkMigrate "migrateAll"]
   [persistUpperCase|
+  Grid
+    geom (PostgisGeometry PointXY)
+    label Text
+
   Unit sql=unit
     geom       (PostgisGeometry PointXY)
     deriving Eq Show
@@ -159,7 +165,24 @@ unitTests =
                 unit <- from $ table @Unit
                 where_ $ unit ^. UnitGeom `st_intersects` (st_point (val 1) (val 1))
                 pure countRows
-            unValue <$> result @?= (Just (1 :: Int))
+            unValue <$> result @?= (Just (1 :: Int)),
+
+
+          testCase ("see if we can union in PG and then get out some Haskell") $ do
+            result <- runDB $ do
+              _ <- insert $ Grid {
+                     gridGeom = Polygon $ makePolygon (PointXY 0 0) (PointXY 0 2) (PointXY 2 2) $ Seq.fromList [(PointXY 2 0)]
+                     , gridLabel = "x"
+                     }
+              _ <- insert $ Grid {
+                     gridGeom = Polygon $ makePolygon (PointXY 2 0) (PointXY 2 2) (PointXY 4 2) $ Seq.fromList [(PointXY 4 0)]
+                     , gridLabel = "y"
+                     }
+
+              selectOne $ do
+                grid <- from $ table @Grid
+                pure $ st_union $ grid ^. GridGeom
+            unValue <$> result @?= (Just $ Polygon $  makeLinearRing (PointXY {_xyX = 0.0, _xyY = 2.0}) (PointXY {_xyX = 2.0, _xyY = 2.0}) (PointXY {_xyX = 4.0, _xyY = 2.0}) (Seq.fromList [PointXY {_xyX = 4.0, _xyY = 0.0},PointXY {_xyX = 2.0, _xyY = 0.0}, PointXY {_xyX = 0.0, _xyY = 0.0}]))
         ]
     ]
 
