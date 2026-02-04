@@ -144,7 +144,7 @@ renderXYZM (PointXYZM {..}) = fromString (show _xyzmX) <> " " <> fromString (sho
 
 renderGeometry :: PostgisGeometry Text.Builder -> Text.Builder
 renderGeometry = \case
-  Point point -> "POINT(" <> point <> ")"
+  Point point' -> "POINT(" <> point' <> ")"
   MultiPoint points -> "MULTIPOINT (" <> fold (Non.intersperse "," ((\x -> "(" <> x <> ")") <$> points)) <> ")"
   Line line -> "LINESTRING(" <> renderLines line <> ")"
   Multiline multiline -> "MULTILINESTRING(" <> fold (Non.intersperse "," ((\line -> "(" <> renderLines line <> ")") <$> multiline)) <> ")"
@@ -154,7 +154,7 @@ renderGeometry = \case
 
 extractFirst :: PostgisGeometry a -> a
 extractFirst = \case
-  Point point -> point
+  Point point' -> point'
   MultiPoint points -> Non.head points
   Line line -> lineStringHead line
   Multiline multiline -> lineStringHead $ Non.head multiline
@@ -168,7 +168,7 @@ renderLines line = fold (List.intersperse "," $ toList line)
 from2dGeospatialGeometry :: (Eq a, Show a) => (GeoPositionWithoutCRS -> Either GeomErrors a) -> GeospatialGeometry -> Either GeomErrors (PostgisGeometry a)
 from2dGeospatialGeometry interpreter = \case
   Geospatial.NoGeometry -> Left NoGeometry
-  Geospatial.Point (GeoPoint point) -> (Point <$> interpreter point)
+  Geospatial.Point (GeoPoint point') -> (Point <$> interpreter point')
   Geospatial.MultiPoint (Geospatial.GeoMultiPoint points) -> do
     list' <- sequence $ toList (interpreter <$> points)
     case nonEmpty list' of
@@ -253,18 +253,18 @@ st_contains a b = unsafeSqlFunction "ST_CONTAINS" (a, b)
 
 -- | allows union of geometries, eg group a bunch together, for example:
 --
---   @
---     SELECT *
---     FROM target_table_to_query t
---     WHERE ST_Intersects(
---     t.geometry_column,
---     (
---         SELECT ST_Union(polygon)
---         FROM grid_polygon_row
---         WHERE label IN ('A1', 'A2', 'B5')
---     )
---     );
---  @
+-- @
+--  mCombined <- selectOne $ do
+--    grid <- from $ table @Grid
+--    pure $ st_union $ grid ^. GridGeom
+--
+--
+--  select $  do
+--    unit <- from $ table @Unit
+--    forM_ mCombined $ \combined ->
+--      where_ $ (unit ^. UnitGeom) `st_intersects` (val $ unValue combined)
+--    pure unit
+-- @
 st_union :: SqlExpr (Value (PostgisGeometry a)) ->
            SqlExpr (Value (PostgisGeometry a))
 st_union a = unsafeSqlFunction "ST_union" a
