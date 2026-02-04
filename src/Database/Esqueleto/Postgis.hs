@@ -25,14 +25,15 @@ where
 import Data.Bifunctor (first)
 import Data.Ewkb (parseHexByteString)
 import Data.Foldable (Foldable (toList), fold)
-import Data.Geospatial (GeoPoint (..), GeoPositionWithoutCRS (..), GeospatialGeometry, PointXY (..), PointXYZ, PointXYZM)
+import Data.Geospatial (GeoPoint (..), GeoPositionWithoutCRS (..), GeospatialGeometry, PointXY (..), PointXYZ (..), PointXYZM (..))
 import Data.Geospatial qualified as Geospatial
 import Data.Hex (Hex (..))
-import Data.LineString (LineString, lineStringHead)
-import Data.LinearRing (LinearRing, makeLinearRing, toSeq, ringHead)
+import Data.LineString (LineString, fromLineString, lineStringHead)
+import Data.LinearRing (LinearRing, fromLinearRing, makeLinearRing, ringHead, toSeq)
 import Data.List qualified as List
-import Data.List.NonEmpty (nonEmpty)
+import Data.List.NonEmpty (NonEmpty ((:|)), nonEmpty)
 import Data.List.NonEmpty qualified as Non
+import Data.Semigroup qualified as S
 import Data.Sequence (Seq (..), (|>))
 import Data.Sequence qualified as Seq
 import Data.String (IsString (..))
@@ -43,33 +44,25 @@ import Data.Text.Lazy.Builder qualified as Text
 import Database.Esqueleto.Experimental (SqlExpr, Value)
 import Database.Esqueleto.Internal.Internal (unsafeSqlFunction)
 import Database.Persist.Sql
-import GHC.Base (NonEmpty)
-import Data.Geospatial (PointXYZM(..))
-import Data.Geospatial (PointXYZ(..))
-import Data.LineString( fromLineString )
-import Data.LinearRing(fromLinearRing )
-import qualified Data.Semigroup as S
-import Data.List.NonEmpty (NonEmpty((:|)))
-
 
 -- | unwrap postgis geometry so you can for example return it from an API
 getPoints :: PostgisGeometry point -> NonEmpty point
 getPoints geom = case geom of
-    Point p -> p :| []
-    MultiPoint pts -> pts
-    Line ls -> linestringNonEmpty ls
-    Multiline lss -> S.sconcat (fmap linestringNonEmpty lss)
-    Polygon ring -> linearRingNonEmpty ring
-    MultiPolygon rings -> S.sconcat (fmap linearRingNonEmpty rings)
-    Collection geoms -> S.sconcat (fmap getPoints geoms)
+  Point p -> p :| []
+  MultiPoint pts -> pts
+  Line ls -> linestringNonEmpty ls
+  Multiline lss -> S.sconcat (fmap linestringNonEmpty lss)
+  Polygon ring -> linearRingNonEmpty ring
+  MultiPolygon rings -> S.sconcat (fmap linearRingNonEmpty rings)
+  Collection geoms -> S.sconcat (fmap getPoints geoms)
 
-linestringNonEmpty :: LineString a  -> NonEmpty a
+linestringNonEmpty :: LineString a -> NonEmpty a
 linestringNonEmpty ls = lineStringHead ls :| drop 1 (fromLineString ls)
 
-linearRingNonEmpty :: LinearRing a  -> NonEmpty a
+linearRingNonEmpty :: LinearRing a -> NonEmpty a
 linearRingNonEmpty ls = ringHead ls :| drop 1 (fromLinearRing ls)
 
-tshow :: Show a => a -> Text
+tshow :: (Show a) => a -> Text
 tshow = pack . show
 
 -- | like 'GeospatialGeometry' but not partial, eg no empty geometries, also only works
@@ -133,14 +126,11 @@ from4dGeoPositionWithoutCRSToPoint = \case
 renderPair :: PointXY -> Text.Builder
 renderPair (PointXY {..}) = fromString (show _xyX) <> " " <> fromString (show _xyY)
 
-
 renderXYZ :: PointXYZ -> Text.Builder
 renderXYZ (PointXYZ {..}) = fromString (show _xyzX) <> " " <> fromString (show _xyzY) <> " " <> fromString (show _xyzZ)
 
-
 renderXYZM :: PointXYZM -> Text.Builder
 renderXYZM (PointXYZM {..}) = fromString (show _xyzmX) <> " " <> fromString (show _xyzmY) <> " " <> fromString (show _xyzmZ) <> " " <> fromString (show _xyzmM)
-
 
 renderGeometry :: PostgisGeometry Text.Builder -> Text.Builder
 renderGeometry = \case
@@ -162,7 +152,7 @@ extractFirst = \case
   MultiPolygon multipolygon -> ringHead $ Non.head multipolygon
   Collection collection -> extractFirst $ Non.head collection
 
-renderLines :: Foldable f => f Text.Builder -> Text.Builder
+renderLines :: (Foldable f) => f Text.Builder -> Text.Builder
 renderLines line = fold (List.intersperse "," $ toList line)
 
 from2dGeospatialGeometry :: (Eq a, Show a) => (GeoPositionWithoutCRS -> Either GeomErrors a) -> GeospatialGeometry -> Either GeomErrors (PostgisGeometry a)
@@ -192,14 +182,12 @@ from2dGeospatialGeometry interpreter = \case
       Just nonEmpty' -> Right $ Collection nonEmpty'
       Nothing -> Left EmptyCollection
 
-
 toLinearRing :: (Eq a, Show a) => (GeoPositionWithoutCRS -> Either GeomErrors a) -> Seq (LinearRing GeoPositionWithoutCRS) -> Either GeomErrors (LinearRing a)
 toLinearRing interpreter polygon = do
   aSeq <- traverse interpreter (foldMap toSeq polygon)
   case aSeq of
     (one :<| two :<| three :<| rem') -> Right $ makeLinearRing one two three rem'
     _other -> Left NotEnoughElements
-
 
 instance PersistField PointXY where
   toPersistValue geom = toPersistValue (Point geom)
@@ -265,8 +253,9 @@ st_contains a b = unsafeSqlFunction "ST_CONTAINS" (a, b)
 --      where_ $ (unit ^. UnitGeom) `st_intersects` (val $ unValue combined)
 --    pure unit
 -- @
-st_union :: SqlExpr (Value (PostgisGeometry a)) ->
-           SqlExpr (Value (PostgisGeometry a))
+st_union ::
+  SqlExpr (Value (PostgisGeometry a)) ->
+  SqlExpr (Value (PostgisGeometry a))
 st_union a = unsafeSqlFunction "ST_union" a
 
 -- | Returns true if two geometries intersect.
@@ -279,7 +268,7 @@ st_intersects ::
 st_intersects a b = unsafeSqlFunction "ST_Intersects" (a, b)
 
 point :: Double -> Double -> (PostgisGeometry PointXY)
-point x y = Point (PointXY { _xyX = x, _xyY = y})
+point x y = Point (PointXY {_xyX = x, _xyY = y})
 
 st_point :: SqlExpr (Value Double) -> SqlExpr (Value Double) -> SqlExpr (Value (PostgisGeometry PointXY))
 st_point a b = unsafeSqlFunction "ST_POINT" (a, b)

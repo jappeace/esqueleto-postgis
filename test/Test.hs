@@ -17,17 +17,17 @@
 
 module Main where
 
-import Control.Monad(forM_)
-import Data.Text
+import Control.Monad (forM_)
 import Control.Monad.IO.Class
 import Control.Monad.Logger (MonadLogger (..), runStderrLoggingT)
 import Control.Monad.Trans.Resource (MonadThrow, ResourceT, runResourceT)
 import Data.Geospatial (PointXY (..), PointXYZ (..), PointXYZM (..))
 import Data.LineString (LineString, makeLineString)
-import Data.LinearRing (LinearRing)
+import Data.LinearRing (LinearRing, makeLinearRing)
 import Data.List.NonEmpty (NonEmpty)
 import Data.Sequence (Seq)
 import qualified Data.Sequence as Seq
+import Data.Text
 import Database.Esqueleto.Experimental
 import Database.Esqueleto.Postgis
 import Database.Persist
@@ -47,7 +47,6 @@ import qualified Hedgehog.Gen as Gen
 import qualified Hedgehog.Range as Range
 import Test.Tasty
 import Test.Tasty.HUnit
-import Data.LinearRing (makeLinearRing )
 
 connString :: ConnectionString
 connString = "host=localhost port=5432 user=test dbname=test password=test"
@@ -107,7 +106,7 @@ testxyz gen =
   testCase "roundtrip xyz geometry" $ do
     someUnit <- Gen.sample (Unityz <$> gen)
     result <- runDB $ do
-      _ <-  insert someUnit
+      _ <- insert someUnit
       selectList @(Unityz) [] []
     (entityVal <$> result) @?= [someUnit]
 
@@ -133,10 +132,11 @@ unitTests =
       testGroup "function bindings" $
         [ testCase ("it finds the one unit with st_contains") $ do
             result <- runDB $ do
-              _ <- insert $
-                Unit
-                  { unitGeom = Polygon $ makePolygon (PointXY 0 0) (PointXY 0 2) (PointXY 2 2) $ Seq.fromList [(PointXY 2 0)]
-                  }
+              _ <-
+                insert $
+                  Unit
+                    { unitGeom = Polygon $ makePolygon (PointXY 0 0) (PointXY 0 2) (PointXY 2 2) $ Seq.fromList [(PointXY 2 0)]
+                    }
 
               selectOne $ do
                 unit <- from $ table @Unit
@@ -145,10 +145,11 @@ unitTests =
             unValue <$> result @?= (Just (1 :: Int)),
           testCase ("it finds the one unit with intersection st_point") $ do
             result <- runDB $ do
-              _ <- insert $
-                Unit
-                  { unitGeom = Polygon $ makePolygon (PointXY 0 0) (PointXY 0 2) (PointXY 2 2) $ Seq.fromList [(PointXY 2 0)]
-                  }
+              _ <-
+                insert $
+                  Unit
+                    { unitGeom = Polygon $ makePolygon (PointXY 0 0) (PointXY 0 2) (PointXY 2 2) $ Seq.fromList [(PointXY 2 0)]
+                    }
 
               selectOne $ do
                 unit <- from $ table @Unit
@@ -157,77 +158,88 @@ unitTests =
             unValue <$> result @?= (Just (1 :: Int)),
           testCase ("it finds the one unit with intersection st_intersects") $ do
             result <- runDB $ do
-              _ <- insert $
-                Unit
-                  { unitGeom = Polygon $ makePolygon (PointXY 0 0) (PointXY 0 2) (PointXY 2 2) $ Seq.fromList [(PointXY 2 0)]
-                  }
+              _ <-
+                insert $
+                  Unit
+                    { unitGeom = Polygon $ makePolygon (PointXY 0 0) (PointXY 0 2) (PointXY 2 2) $ Seq.fromList [(PointXY 2 0)]
+                    }
 
               selectOne $ do
                 unit <- from $ table @Unit
                 where_ $ unit ^. UnitGeom `st_intersects` (st_point (val 1) (val 1))
                 pure countRows
             unValue <$> result @?= (Just (1 :: Int)),
-
-
           testCase ("see if we can union in PG and then get out some Haskell") $ do
             result <- runDB $ do
-              _ <- insert $ Grid {
-                     gridGeom = Polygon $ makePolygon (PointXY 0 0) (PointXY 0 2) (PointXY 2 2) $ Seq.fromList [(PointXY 2 0)]
-                     , gridLabel = "x"
-                     }
-              _ <- insert $ Grid {
-                     gridGeom = Polygon $ makePolygon (PointXY 2 0) (PointXY 2 2) (PointXY 4 2) $ Seq.fromList [(PointXY 4 0)]
-                     , gridLabel = "y"
-                     }
+              _ <-
+                insert $
+                  Grid
+                    { gridGeom = Polygon $ makePolygon (PointXY 0 0) (PointXY 0 2) (PointXY 2 2) $ Seq.fromList [(PointXY 2 0)],
+                      gridLabel = "x"
+                    }
+              _ <-
+                insert $
+                  Grid
+                    { gridGeom = Polygon $ makePolygon (PointXY 2 0) (PointXY 2 2) (PointXY 4 2) $ Seq.fromList [(PointXY 4 0)],
+                      gridLabel = "y"
+                    }
 
               selectOne $ do
                 grid <- from $ table @Grid
                 pure $ st_union $ grid ^. GridGeom
-            unValue <$> result @?= (Just $ Polygon $  makeLinearRing (PointXY {_xyX = 0.0, _xyY = 2.0}) (PointXY {_xyX = 2.0, _xyY = 2.0}) (PointXY {_xyX = 4.0, _xyY = 2.0}) (Seq.fromList [PointXY {_xyX = 4.0, _xyY = 0.0},PointXY {_xyX = 2.0, _xyY = 0.0}, PointXY {_xyX = 0.0, _xyY = 0.0}]))
-        , testCase ("see if we can get just the units in the polygons") $ do
+            unValue <$> result @?= (Just $ Polygon $ makeLinearRing (PointXY {_xyX = 0.0, _xyY = 2.0}) (PointXY {_xyX = 2.0, _xyY = 2.0}) (PointXY {_xyX = 4.0, _xyY = 2.0}) (Seq.fromList [PointXY {_xyX = 4.0, _xyY = 0.0}, PointXY {_xyX = 2.0, _xyY = 0.0}, PointXY {_xyX = 0.0, _xyY = 0.0}])),
+          testCase ("see if we can get just the units in the polygons") $ do
             result <- runDB $ do
-              _ <- insert $ Grid {
-                     gridGeom = Polygon $ makePolygon (PointXY 0 0) (PointXY 0 2) (PointXY 2 2) $ Seq.fromList [(PointXY 2 0)]
-                     , gridLabel = "x"
-                     }
-              _ <- insert $ Grid {
-                     gridGeom = Polygon $ makePolygon (PointXY 2 0) (PointXY 2 2) (PointXY 4 2) $ Seq.fromList [(PointXY 4 0)]
-                     , gridLabel = "y"
-                     }
-              _ <- insert $
-                Unit
-                  { unitGeom = point 1 1
-                  }
-              _ <- insert $
-                Unit
-                  { unitGeom = point 1 2
-                  }
+              _ <-
+                insert $
+                  Grid
+                    { gridGeom = Polygon $ makePolygon (PointXY 0 0) (PointXY 0 2) (PointXY 2 2) $ Seq.fromList [(PointXY 2 0)],
+                      gridLabel = "x"
+                    }
+              _ <-
+                insert $
+                  Grid
+                    { gridGeom = Polygon $ makePolygon (PointXY 2 0) (PointXY 2 2) (PointXY 4 2) $ Seq.fromList [(PointXY 4 0)],
+                      gridLabel = "y"
+                    }
+              _ <-
+                insert $
+                  Unit
+                    { unitGeom = point 1 1
+                    }
+              _ <-
+                insert $
+                  Unit
+                    { unitGeom = point 1 2
+                    }
 
-              _ <- insert $
-                Unit
-                  { unitGeom = point 2 2
-                  }
-              _ <- insert $
-                Unit
-                  { unitGeom = point 9 9
-                  }
-              _ <- insert $
-                Unit
-                  { unitGeom = point 10 10
-                  }
+              _ <-
+                insert $
+                  Unit
+                    { unitGeom = point 2 2
+                    }
+              _ <-
+                insert $
+                  Unit
+                    { unitGeom = point 9 9
+                    }
+              _ <-
+                insert $
+                  Unit
+                    { unitGeom = point 10 10
+                    }
 
               mCombined <- selectOne $ do
                 grid <- from $ table @Grid
                 pure $ st_union $ grid ^. GridGeom
 
-
-              select $  do
+              select $ do
                 unit <- from $ table @Unit
                 forM_ mCombined $ \combined ->
                   where_ $ (unit ^. UnitGeom) `st_intersects` (val $ unValue combined)
                 pure unit
 
-            entityVal <$> result @?= [Unit {unitGeom = Point (PointXY {_xyX = 1.0, _xyY = 1.0})},Unit {unitGeom = Point (PointXY {_xyX = 1.0, _xyY = 2.0})},Unit {unitGeom = Point (PointXY {_xyX = 2.0, _xyY = 2.0})}]
+            entityVal <$> result @?= [Unit {unitGeom = Point (PointXY {_xyX = 1.0, _xyY = 1.0})}, Unit {unitGeom = Point (PointXY {_xyX = 1.0, _xyY = 2.0})}, Unit {unitGeom = Point (PointXY {_xyX = 2.0, _xyY = 2.0})}]
         ]
     ]
 
