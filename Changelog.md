@@ -1,5 +1,11 @@
 # Change log for esqueleto-postgis project
 
+## Version 1.1.0 
++ Add st_union
++ add getPoitns to escape the postgis geometry more easily.
++ bump bounds
+
+
 ## Version 1.0.1 
 + fix insane bounds by cabal genbounds. 
   I think this was caused due to running it from the flake which
