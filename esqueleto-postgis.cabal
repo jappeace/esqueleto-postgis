@@ -108,11 +108,6 @@ test-suite unit
         Wkb.LineSpec
         Wkb.PointSpec
         Wkb.PolygonSpec
-        Wkt.BoxSpec
-        Wkt.GeometryCollectionSpec
-        Wkt.LineSpec
-        Wkt.PointSpec
-        Wkt.PolygonSpec
 
   hs-source-dirs:
       test

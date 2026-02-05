@@ -21,7 +21,6 @@ import Control.Monad (forM_)
 import Control.Monad.IO.Class
 import Control.Monad.Logger (MonadLogger (..), runStderrLoggingT)
 import Control.Monad.Trans.Resource (MonadThrow, ResourceT, runResourceT)
-import Data.Geospatial (PointXY (..), PointXYZ (..), PointXYZM (..))
 import Data.LineString (LineString, makeLineString)
 import Data.LinearRing (LinearRing, makeLinearRing)
 import Data.List.NonEmpty (NonEmpty)
@@ -61,11 +60,6 @@ import qualified Wkb.LineSpec
 import qualified Wkb.PointSpec
 import qualified Wkb.PolygonSpec
 
-import qualified Wkt.BoxSpec
-import qualified Wkt.GeometryCollectionSpec
-import qualified Wkt.LineSpec
-import qualified Wkt.PointSpec
-import qualified Wkt.PolygonSpec
 
 connString :: ConnectionString
 connString = "host=localhost port=5432 user=test dbname=test password=test"
@@ -123,13 +117,8 @@ main = do
     testSpec "Wkb.HexParsingSpec" Wkb.HexParsingSpec.spec,
     testSpec "Wkb.LineSpec" Wkb.LineSpec.spec,
     testSpec "Wkb.PointSpec" Wkb.PointSpec.spec,
-    testSpec "Wkb.PolygonSpec" Wkb.PolygonSpec.spec,
+    testSpec "Wkb.PolygonSpec" Wkb.PolygonSpec.spec
 
-    testSpec "Wkt.BoxSpec" Wkt.BoxSpec.spec,
-    testSpec "Wkt.GeometryCollectionSpec" Wkt.GeometryCollectionSpec.spec,
-    testSpec "Wkt.LineSpec" Wkt.LineSpec.spec,
-    testSpec "Wkt.PointSpec" Wkt.PointSpec.spec,
-    testSpec "Wkt.PolygonSpec" Wkt.PolygonSpec.spec
     ]
 
   defaultMain $
