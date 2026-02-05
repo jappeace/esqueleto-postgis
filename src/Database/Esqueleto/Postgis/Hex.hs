@@ -1,0 +1,23 @@
+
+-- | friendly copied from github.com/zellige/wkt-geom.git
+--   Copyright 2017-2018 wkt-geom Project
+--   Apache license
+module Database.Esqueleto.Postgis.Hex
+  ( safeConvert
+  , Hex(..)
+  ) where
+
+import qualified Data.ByteString        as ByteString
+import qualified Data.ByteString.Base16 as ByteStringBase16
+import qualified Data.ByteString.Char8  as ByteStringChar8
+import qualified Data.ByteString.Lazy   as LazyByteString
+import qualified Data.Geospatial        as Geospatial
+
+newtype Hex = Hex ByteString.ByteString
+
+safeConvert :: (LazyByteString.ByteString -> Either String Geospatial.GeospatialGeometry) -> Hex -> Either String Geospatial.GeospatialGeometry
+safeConvert f (Hex byteString) =
+    case ByteStringBase16.decodeBase16Untyped byteString of
+         Left  _       -> Left $ "Invalid hex representation: " <> ByteStringChar8.unpack byteString
+         Right decoded -> f    $ LazyByteString.fromStrict decoded
+

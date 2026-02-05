@@ -5,7 +5,7 @@ cabal-version:      3.0
 -- see: https://github.com/sol/hpack
 
 name:           esqueleto-postgis
-version:        1.1.0
+version:        1.2.0
 homepage:       https://github.com/jappeace/esqueleto-postgis#readme
 bug-reports:    https://github.com/jappeace/esqueleto-postgis/issues
 author:         Jappie Klooster
@@ -65,7 +65,9 @@ common common-options
       text >= 1.2.5 && < 2.2,
       persistent >= 2.13.3 && < 2.19,
       geojson >= 4.1.1 && < 4.2,
-      wkt-geom >= 0.0.12 && < 0.1,
+      bytestring < 2,
+      base16 >= 1.0 && < 1.1,
+      binary < 1,
 
 
   default-language: Haskell2010
@@ -74,6 +76,18 @@ library
   import: common-options
   exposed-modules:
       Database.Esqueleto.Postgis
+      Database.Esqueleto.Postgis.Ewkb
+      Database.Esqueleto.Postgis.Hex
+      Database.Esqueleto.Postgis.Ewkb.Geometry
+      Database.Esqueleto.Postgis.Wkb.Endian
+      Database.Esqueleto.Postgis.Wkb.Geometry
+      Database.Esqueleto.Postgis.Wkb.GeometryCollection
+      Database.Esqueleto.Postgis.Wkb.Geospatial
+      Database.Esqueleto.Postgis.Wkb.Line
+      Database.Esqueleto.Postgis.Wkb.Point
+      Database.Esqueleto.Postgis.Wkb.Polygon
+      Database.Esqueleto.Postgis.Wkb
+
   hs-source-dirs:
       src
 
@@ -82,6 +96,19 @@ test-suite unit
   type: exitcode-stdio-1.0
   main-is: Test.hs
   ghc-options: -Wno-unused-packages
+  other-modules:
+        Data.SpecHelper
+        Ewkb.GeometrySpec
+        Ewkb.LineSpec
+        Ewkb.PointSpec
+        Wkb.EndianSpec
+        Wkb.GeometryCollectionSpec
+        Wkb.GeometrySpec
+        Wkb.HexParsingSpec
+        Wkb.LineSpec
+        Wkb.PointSpec
+        Wkb.PolygonSpec
+
   hs-source-dirs:
       test
   build-depends:
@@ -93,3 +120,6 @@ test-suite unit
       resourcet,
       monad-logger,
       hedgehog,
+      hspec,
+      tasty-hspec,
+      hw-hspec-hedgehog < 0.2 &&   >= 0.1.0.4

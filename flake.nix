@@ -3,13 +3,9 @@
 
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs/nixpkgs-unstable";
-    flake-compat = {
-      url = "github:edolstra/flake-compat";
-      flake = false;
-    };
   };
 
-  outputs = { self, nixpkgs, flake-compat }:
+  outputs = { self, nixpkgs,  }:
     let
       pkgs = nixpkgs.legacyPackages.x86_64-linux;
       hpkgs = pkgs.haskellPackages.override {
@@ -25,7 +21,7 @@
             echo "ran by flake :)"
             '';
           };
-          wkt-geom = pkgs.haskell.lib.doJailbreak (pkgs.haskell.lib.markUnbroken hold.wkt-geom);
+          geojson = pkgs.haskell.lib.doJailbreak (pkgs.haskell.lib.markUnbroken hold.geojson);
         };
       };
       package = hpkgs.esqueleto-postgis;
@@ -34,12 +30,16 @@
       defaultPackage.x86_64-linux =  package;
       inherit pkgs;
 
-      checks.x86_64-linux.tests =  pkgs.nixosTest {
+      checks.x86_64-linux.tests =  pkgs.testers.nixosTest {
         name = "esqueleto-test";
 
         testScript = ''
           server.start()
           server.wait_for_unit("postgresql.service")
+          # Wait explicitly for the PostGIS extension to be ready
+          server.wait_until_succeeds(
+            "sudo -u postgres psql -d test -c 'SELECT PostGIS_Version()'"
+          )
           print(
               server.succeed(
                   "${package}/bin/test/unit"

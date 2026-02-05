@@ -21,7 +21,6 @@ import Control.Monad (forM_)
 import Control.Monad.IO.Class
 import Control.Monad.Logger (MonadLogger (..), runStderrLoggingT)
 import Control.Monad.Trans.Resource (MonadThrow, ResourceT, runResourceT)
-import Data.Geospatial (PointXY (..), PointXYZ (..), PointXYZM (..))
 import Data.LineString (LineString, makeLineString)
 import Data.LinearRing (LinearRing, makeLinearRing)
 import Data.List.NonEmpty (NonEmpty)
@@ -47,6 +46,20 @@ import qualified Hedgehog.Gen as Gen
 import qualified Hedgehog.Range as Range
 import Test.Tasty
 import Test.Tasty.HUnit
+import Test.Tasty.Hspec(testSpec)
+
+import qualified Ewkb.GeometrySpec
+import qualified Ewkb.LineSpec
+import qualified Ewkb.PointSpec
+
+import qualified Wkb.EndianSpec
+import qualified Wkb.GeometryCollectionSpec
+import qualified Wkb.GeometrySpec
+import qualified Wkb.HexParsingSpec
+import qualified Wkb.LineSpec
+import qualified Wkb.PointSpec
+import qualified Wkb.PolygonSpec
+
 
 connString :: ConnectionString
 connString = "host=localhost port=5432 user=test dbname=test password=test"
@@ -87,10 +100,29 @@ runDB act =
     $ (initializeDB >> act >>= \ret -> transactionUndo >> return ret)
 
 main :: IO ()
-main = defaultMain tests
+main = do
+  -- normally hspec discover does this, but we don't want to use
+  -- convuleted preprocessor,
+  -- it sometimes doesn't work and it's hard to understand why.
+  -- so I prefer to just import everything by hand.
+  -- also, go look at the source of hspec discover, it's kinda shocking.
+  hspecTrees <- sequence [
+    testSpec "Ewkb.GeometrySpec" Ewkb.GeometrySpec.spec,
+    testSpec "Ewkb.LineSpec" Ewkb.LineSpec.spec,
+    testSpec "Ewkb.PointSpec" Ewkb.PointSpec.spec,
 
-tests :: TestTree
-tests = testGroup "Tests" [unitTests]
+    testSpec "Wkb.EndianSpec" Wkb.EndianSpec.spec,
+    testSpec "Wkb.GeometryCollectionSpec" Wkb.GeometryCollectionSpec.spec,
+    testSpec "Wkb.GeometrySpec" Wkb.GeometrySpec.spec,
+    testSpec "Wkb.HexParsingSpec" Wkb.HexParsingSpec.spec,
+    testSpec "Wkb.LineSpec" Wkb.LineSpec.spec,
+    testSpec "Wkb.PointSpec" Wkb.PointSpec.spec,
+    testSpec "Wkb.PolygonSpec" Wkb.PolygonSpec.spec
+
+    ]
+
+  defaultMain $
+    testGroup "all tests" $ postgisBindingsTests : hspecTrees
 
 test' :: Gen (PostgisGeometry PointXY) -> TestTree
 test' gen =
@@ -119,10 +151,10 @@ testxyzm gen =
       selectList @(Unityzm) [] []
     (entityVal <$> result) @?= [someUnit]
 
-unitTests :: TestTree
-unitTests =
+postgisBindingsTests :: TestTree
+postgisBindingsTests =
   testGroup
-    "Unit tests"
+    "postgis binding tests"
     [ testGroup "roundtrip tests xy" $
         (test') <$> (genCollection genPointxy : genGeometry genPointxy),
       testGroup "roundtrip tests xyz" $
