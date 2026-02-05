@@ -36,6 +36,10 @@
         testScript = ''
           server.start()
           server.wait_for_unit("postgresql.service")
+          # Wait explicitly for the PostGIS extension to be ready
+          server.wait_until_succeeds(
+            "sudo -u postgres psql -d test -c 'SELECT PostGIS_Version()'"
+          )
           print(
               server.succeed(
                   "${package}/bin/test/unit"
