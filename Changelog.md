@@ -1,5 +1,18 @@
 # Change log for esqueleto-postgis project
 
+## Version 1.2.0 
++ re-export point, less annoying to use.
++ adopt wkt-geom package and put it in as a submodule,
+  original library doesn't appear to be maintained.
+  this way we're a step closer to stackage.
+  + got rid of the internal convention, 
+    it goes against pvp. If we want some specialized
+    usage package I should split off a core package instead.
+    For now I don't care I don't think I'm not changing those 
+    functions anyway.
+  + also ported over the test suite
+
+
 ## Version 1.1.0 
 + Add st_union
 + add getPoitns to escape the postgis geometry more easily.

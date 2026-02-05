@@ -1,0 +1,56 @@
+module Database.Esqueleto.Postgis.Wkb.GeometryCollection
+  ( getGeometryCollection
+  , getEnclosedFeature
+  , builderGeometryCollection
+  ) where
+
+import qualified Control.Monad              as Monad
+import qualified Data.Binary.Get            as BinaryGet
+import qualified Data.ByteString.Builder    as ByteStringBuilder
+import qualified Data.Foldable              as Foldable
+import qualified Data.Geospatial            as Geospatial
+import qualified Data.Sequence              as Sequence
+
+import qualified Database.Esqueleto.Postgis.Wkb.Endian   as Endian
+import qualified Database.Esqueleto.Postgis.Wkb.Geometry as Geometry
+
+
+-- Binary parsers
+
+getGeometryCollection :: BinaryGet.Get Geospatial.GeospatialGeometry
+                          -> Endian.EndianType
+                          -> Geometry.CoordinateType
+                          -> BinaryGet.Get Geospatial.GeospatialGeometry
+getGeometryCollection getGeospatialGeometry endianType _ = do
+  numberOfGeometries <- Endian.getFourBytes endianType
+  geoSpatialGeometries <- Sequence.replicateM (fromIntegral numberOfGeometries) getGeospatialGeometry
+  pure $ Geospatial.Collection geoSpatialGeometries
+
+getEnclosedFeature :: (Endian.EndianType -> BinaryGet.Get Geometry.WkbGeometryType)
+                      -> Geometry.GeometryType
+                      -> (Endian.EndianType -> Geometry.CoordinateType -> BinaryGet.Get feature)
+                      -> BinaryGet.Get feature
+getEnclosedFeature getWkbGeom expectedGeometryType getFeature = do
+  endianType <- Endian.getEndianType
+  geometryTypeWithCoords <- getWkbGeom endianType
+  let (Geometry.WkbGeom geoType coordType) = geometryTypeWithCoords
+  if geoType == expectedGeometryType then
+    getFeature endianType coordType
+  else
+    Monad.fail "Wrong geometry type of enclosed feature"
+
+
+-- Binary builders
+
+type BuilderGeospatialFeature = Geometry.BuilderWkbGeometryType -> Endian.EndianType ->  Geospatial.GeospatialGeometry -> ByteStringBuilder.Builder
+
+builderGeometryCollection :: BuilderGeospatialFeature
+                              -> Geometry.BuilderWkbGeometryType
+                              -> Endian.EndianType
+                              -> Sequence.Seq Geospatial.GeospatialGeometry
+                              -> ByteStringBuilder.Builder
+builderGeometryCollection builderGeospatialFeature builderWkbGeom endianType geometryCollection =
+  Endian.builderEndianType endianType
+    <> builderWkbGeom endianType (Geometry.WkbGeom Geometry.GeometryCollection Geometry.TwoD)
+    <> Endian.builderFourBytes endianType (fromIntegral $ length geometryCollection)
+    <> Foldable.foldMap (builderGeospatialFeature builderWkbGeom endianType) geometryCollection

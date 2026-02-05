@@ -19,15 +19,20 @@ module Database.Esqueleto.Postgis
     st_point,
     st_point_xyz,
     st_point_xyzm,
+
+    -- * re-exports
+    PointXY(..),
+    PointXYZ(..),
+    PointXYZM(..),
   )
 where
 
 import Data.Bifunctor (first)
-import Data.Ewkb (parseHexByteString)
+import Database.Esqueleto.Postgis.Ewkb (parseHexByteString)
 import Data.Foldable (Foldable (toList), fold)
 import Data.Geospatial (GeoPoint (..), GeoPositionWithoutCRS (..), GeospatialGeometry, PointXY (..), PointXYZ (..), PointXYZM (..))
 import Data.Geospatial qualified as Geospatial
-import Data.Hex (Hex (..))
+import Database.Esqueleto.Postgis.Hex (Hex (..))
 import Data.LineString (LineString, fromLineString, lineStringHead)
 import Data.LinearRing (LinearRing, fromLinearRing, makeLinearRing, ringHead, toSeq)
 import Data.List qualified as List
