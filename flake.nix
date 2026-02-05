@@ -21,7 +21,7 @@
             echo "ran by flake :)"
             '';
           };
-          geojson = (pkgs.haskell.lib.markUnbroken hold.geojson);
+          geojson = pkgs.haskell.lib.doJailbreak (pkgs.haskell.lib.markUnbroken hold.geojson);
         };
       };
       package = hpkgs.esqueleto-postgis;
