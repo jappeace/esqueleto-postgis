@@ -30,7 +30,7 @@
       defaultPackage.x86_64-linux =  package;
       inherit pkgs;
 
-      checks.x86_64-linux.tests =  pkgs.nixosTest {
+      checks.x86_64-linux.tests =  pkgs.testers.nixosTest {
         name = "esqueleto-test";
 
         testScript = ''
