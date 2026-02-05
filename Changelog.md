@@ -11,6 +11,7 @@
     For now I don't care I don't think I'm not changing those 
     functions anyway.
   + also ported over the test suite
++ swap out bytestring-base16 for base16, which appears maintained.
 
 
 ## Version 1.1.0 

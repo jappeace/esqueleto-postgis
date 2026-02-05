@@ -65,9 +65,9 @@ common common-options
       text >= 1.2.5 && < 2.2,
       persistent >= 2.13.3 && < 2.19,
       geojson >= 4.1.1 && < 4.2,
-      bytestring,
-      base16-bytestring,
-      binary,
+      bytestring < 2,
+      base16 >= 1.0 && < 1.1,
+      binary < 1,
 
 
   default-language: Haskell2010

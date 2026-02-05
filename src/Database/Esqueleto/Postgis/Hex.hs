@@ -17,7 +17,7 @@ newtype Hex = Hex ByteString.ByteString
 
 safeConvert :: (LazyByteString.ByteString -> Either String Geospatial.GeospatialGeometry) -> Hex -> Either String Geospatial.GeospatialGeometry
 safeConvert f (Hex byteString) =
-    case ByteStringBase16.decode byteString of
+    case ByteStringBase16.decodeBase16 byteString of
          Left  _       -> Left $ "Invalid hex representation: " <> ByteStringChar8.unpack byteString
          Right decoded -> f    $ LazyByteString.fromStrict decoded
 
