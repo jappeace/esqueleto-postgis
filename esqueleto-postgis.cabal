@@ -5,7 +5,7 @@ cabal-version:      3.0
 -- see: https://github.com/sol/hpack
 
 name:           esqueleto-postgis
-version:        2.0.0
+version:        2.0.1
 homepage:       https://github.com/jappeace/esqueleto-postgis#readme
 bug-reports:    https://github.com/jappeace/esqueleto-postgis/issues
 author:         Jappie Klooster
@@ -107,6 +107,7 @@ test-suite unit
         Wkb.LineSpec
         Wkb.PointSpec
         Wkb.PolygonSpec
+        HaskellWorks.Hspec.Hedgehog
 
   hs-source-dirs:
       test
@@ -121,4 +122,5 @@ test-suite unit
       hedgehog,
       hspec,
       tasty-hspec,
-      hw-hspec-hedgehog < 0.2 &&   >= 0.1.0.4
+      call-stack,
+      HUnit,

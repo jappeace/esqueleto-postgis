@@ -1,5 +1,8 @@
 # Change log for esqueleto-postgis project
 
+## Version 2.0.1 
+* drop haskell works hedghog dependency
+
 ## Version 2.0.0 
 * Hide irrelevant modules
 * delete hex module, use base16 hex approach instead.
