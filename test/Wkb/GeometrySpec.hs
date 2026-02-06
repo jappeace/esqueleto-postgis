@@ -6,8 +6,8 @@ import qualified Data.Binary.Get            as BinaryGet
 import qualified Data.ByteString.Builder    as ByteStringBuilder
 import           Test.Hspec                 (Spec, describe, it, shouldBe)
 
-import qualified Database.Esqueleto.Postgis.Wkb.Endian   as Endian
-import qualified Database.Esqueleto.Postgis.Wkb.Geometry as Geometry
+import qualified Database.Esqueleto.Postgis.Wkb   as Endian
+import qualified Database.Esqueleto.Postgis.Wkb as Geometry
 
 spec :: Spec
 spec =

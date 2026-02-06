@@ -12,9 +12,8 @@ import qualified Hedgehog.Range              as Range
 import           Test.Hspec                  (Spec, it)
 
 import qualified Database.Esqueleto.Postgis.Ewkb                   as Ewkb
-import qualified Database.Esqueleto.Postgis.Ewkb.Geometry as EwkbGeometry
-import qualified Database.Esqueleto.Postgis.Wkb.Endian    as Endian
-import qualified Database.Esqueleto.Postgis.Wkb.Geometry  as Geometry
+import qualified Database.Esqueleto.Postgis.Wkb    as Endian
+import qualified Database.Esqueleto.Postgis.Wkb  as Geometry
 import qualified Database.Esqueleto.Postgis.Wkb                    as Wkb
 
 -- Helpers
@@ -47,7 +46,7 @@ roundTripWkb endianType geometry =
 roundTripEwkb :: MonadTest m => Endian.EndianType -> Geospatial.GeospatialGeometry -> m ()
 roundTripEwkb endianType geometry =
   let
-    p = Ewkb.parseByteString . Ewkb.toByteString endianType (EwkbGeometry.Srid (4326 :: Word.Word32))
+    p = Ewkb.parseByteString . Ewkb.toByteString endianType (Ewkb.Srid (4326 :: Word.Word32))
   in
     p geometry === Right geometry
 

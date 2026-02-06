@@ -9,8 +9,8 @@ import qualified HaskellWorks.Hspec.Hedgehog as HedgehogHspec
 import           Hedgehog
 import           Test.Hspec                  (Spec, describe, it)
 
-import qualified Database.Esqueleto.Postgis.Wkb.Geometry  as Geometry
-import qualified Database.Esqueleto.Postgis.Wkb.Point     as Point
+import qualified Database.Esqueleto.Postgis.Wkb  as Geometry
+import qualified Database.Esqueleto.Postgis.Wkb     as Point
 import qualified Data.SpecHelper             as SpecHelper
 
 spec :: Spec

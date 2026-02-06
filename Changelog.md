@@ -1,5 +1,10 @@
 # Change log for esqueleto-postgis project
 
+## Version 2.0.0 
+* Hide irrelevant modules
+* delete hex module, use base16 hex approach instead.
+* Much better docs that explain what's going on.
+
 ## Version 1.2.0 
 + re-export point, less annoying to use.
 + adopt wkt-geom package and put it in as a submodule,

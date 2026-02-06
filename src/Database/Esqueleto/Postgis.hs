@@ -32,7 +32,6 @@ import Database.Esqueleto.Postgis.Ewkb (parseHexByteString)
 import Data.Foldable (Foldable (toList), fold)
 import Data.Geospatial (GeoPoint (..), GeoPositionWithoutCRS (..), GeospatialGeometry, PointXY (..), PointXYZ (..), PointXYZM (..))
 import Data.Geospatial qualified as Geospatial
-import Database.Esqueleto.Postgis.Hex (Hex (..))
 import Data.LineString (LineString, fromLineString, lineStringHead)
 import Data.LinearRing (LinearRing, fromLinearRing, makeLinearRing, ringHead, toSeq)
 import Data.List qualified as List
@@ -49,6 +48,8 @@ import Data.Text.Lazy.Builder qualified as Text
 import Database.Esqueleto.Experimental (SqlExpr, Value)
 import Database.Esqueleto.Internal.Internal (unsafeSqlFunction)
 import Database.Persist.Sql
+import Data.Base16.Types(assertBase16)
+import Data.ByteString(fromStrict)
 
 -- | unwrap postgis geometry so you can for example return it from an API
 getPoints :: PostgisGeometry point -> NonEmpty point
@@ -205,7 +206,7 @@ instance PersistField (PostgisGeometry PointXY) where
   toPersistValue geom =
     PersistText $ toStrict $ toLazyText $ renderGeometry $ renderPair <$> geom
   fromPersistValue (PersistLiteral_ Escaped bs) = do
-    result <- first pack $ parseHexByteString (Hex bs)
+    result <- first pack $ parseHexByteString $ assertBase16 $ fromStrict bs
     first tshow $ (from2dGeospatialGeometry from2dGeoPositionWithoutCRSToPoint) result
   fromPersistValue other = Left ("PersistField.Polygon: invalid persist value:" <> tshow other)
 
@@ -213,7 +214,7 @@ instance PersistField (PostgisGeometry PointXYZ) where
   toPersistValue geom =
     PersistText $ toStrict $ toLazyText $ renderGeometry $ renderXYZ <$> geom
   fromPersistValue (PersistLiteral_ Escaped bs) = do
-    result <- first pack $ parseHexByteString (Hex bs)
+    result <- first pack $ parseHexByteString $ assertBase16 $ fromStrict bs
     first tshow $ (from2dGeospatialGeometry from3dGeoPositionWithoutCRSToPoint) result
   fromPersistValue other = Left ("PersistField.Polygon: invalid persist value:" <> tshow other)
 
@@ -221,7 +222,7 @@ instance PersistField (PostgisGeometry PointXYZM) where
   toPersistValue geom =
     PersistText $ toStrict $ toLazyText $ renderGeometry $ renderXYZM <$> geom
   fromPersistValue (PersistLiteral_ Escaped bs) = do
-    result <- first pack $ parseHexByteString (Hex bs)
+    result <- first pack $ parseHexByteString $ assertBase16 $ fromStrict bs
     first tshow $ (from2dGeospatialGeometry from4dGeoPositionWithoutCRSToPoint) result
   fromPersistValue other = Left ("PersistField.Polygon: invalid persist value:" <> tshow other)
 

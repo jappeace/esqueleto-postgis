@@ -7,9 +7,9 @@ import qualified Data.ByteString.Builder     as ByteStringBuilder
 import qualified Data.Word                   as Word
 import           Test.Hspec                  (Spec, describe, it, shouldBe)
 
-import qualified Database.Esqueleto.Postgis.Ewkb.Geometry as Ewkb
-import qualified Database.Esqueleto.Postgis.Wkb.Endian    as Endian
-import qualified Database.Esqueleto.Postgis.Wkb.Geometry  as Wkb
+import qualified Database.Esqueleto.Postgis.Ewkb as Ewkb
+import qualified Database.Esqueleto.Postgis.Wkb    as Endian
+import qualified Database.Esqueleto.Postgis.Wkb  as Wkb
 
 spec :: Spec
 spec =

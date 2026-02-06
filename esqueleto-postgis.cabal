@@ -5,7 +5,7 @@ cabal-version:      3.0
 -- see: https://github.com/sol/hpack
 
 name:           esqueleto-postgis
-version:        1.2.0
+version:        2.0.0
 homepage:       https://github.com/jappeace/esqueleto-postgis#readme
 bug-reports:    https://github.com/jappeace/esqueleto-postgis/issues
 author:         Jappie Klooster
@@ -77,16 +77,16 @@ library
   exposed-modules:
       Database.Esqueleto.Postgis
       Database.Esqueleto.Postgis.Ewkb
-      Database.Esqueleto.Postgis.Hex
-      Database.Esqueleto.Postgis.Ewkb.Geometry
-      Database.Esqueleto.Postgis.Wkb.Endian
-      Database.Esqueleto.Postgis.Wkb.Geometry
-      Database.Esqueleto.Postgis.Wkb.GeometryCollection
-      Database.Esqueleto.Postgis.Wkb.Geospatial
-      Database.Esqueleto.Postgis.Wkb.Line
-      Database.Esqueleto.Postgis.Wkb.Point
-      Database.Esqueleto.Postgis.Wkb.Polygon
       Database.Esqueleto.Postgis.Wkb
+  other-modules:
+      Database.Esqueleto.Postgis.Wkb.Endian
+      Database.Esqueleto.Postgis.Wkb.Point
+      Database.Esqueleto.Postgis.Wkb.Geometry
+      Database.Esqueleto.Postgis.Ewkb.Geometry
+      Database.Esqueleto.Postgis.Wkb.GeometryCollection
+      Database.Esqueleto.Postgis.Wkb.Line
+      Database.Esqueleto.Postgis.Wkb.Polygon
+      Database.Esqueleto.Postgis.Wkb.Geospatial
 
   hs-source-dirs:
       src
@@ -104,7 +104,6 @@ test-suite unit
         Wkb.EndianSpec
         Wkb.GeometryCollectionSpec
         Wkb.GeometrySpec
-        Wkb.HexParsingSpec
         Wkb.LineSpec
         Wkb.PointSpec
         Wkb.PolygonSpec
