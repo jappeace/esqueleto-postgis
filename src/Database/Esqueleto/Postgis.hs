@@ -71,9 +71,10 @@ linearRingNonEmpty ls = ringHead ls :| drop 1 (fromLinearRing ls)
 tshow :: (Show a) => a -> Text
 tshow = pack . show
 
--- | like 'GeospatialGeometry' but not partial, eg no empty geometries, also only works
---   in a single dimention, eg PostgisGeometry PointXY can't work with PostgisGeometry PointXYZ.
---   so PointXY indicates a 2 dimension space, and PointXYZ a three dimension space.
+-- | like 'GeospatialGeometry' but not partial, eg no empty geometries.
+--   Also can put an inveriant on dimensions if a function requires it.
+--   for example 'st_intersects' 'PostgisGeometry' 'PointXY' can't work with 'PostgisGeometry' 'PointXYZ'.
+--   PointXY indicates a 2 dimension space, and PointXYZ a three dimension space.
 data PostgisGeometry point
   = Point point
   | MultiPoint (NonEmpty point)
