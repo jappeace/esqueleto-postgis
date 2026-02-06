@@ -77,15 +77,16 @@ library
   exposed-modules:
       Database.Esqueleto.Postgis
       Database.Esqueleto.Postgis.Ewkb
-      Database.Esqueleto.Postgis.Ewkb.Geometry
-      Database.Esqueleto.Postgis.Wkb.Endian
-      Database.Esqueleto.Postgis.Wkb.Geometry
-      Database.Esqueleto.Postgis.Wkb.GeometryCollection
-      Database.Esqueleto.Postgis.Wkb.Geospatial
-      Database.Esqueleto.Postgis.Wkb.Line
-      Database.Esqueleto.Postgis.Wkb.Point
-      Database.Esqueleto.Postgis.Wkb.Polygon
       Database.Esqueleto.Postgis.Wkb
+  other-modules:
+      Database.Esqueleto.Postgis.Wkb.Endian
+      Database.Esqueleto.Postgis.Wkb.Point
+      Database.Esqueleto.Postgis.Wkb.Geometry
+      Database.Esqueleto.Postgis.Ewkb.Geometry
+      Database.Esqueleto.Postgis.Wkb.GeometryCollection
+      Database.Esqueleto.Postgis.Wkb.Line
+      Database.Esqueleto.Postgis.Wkb.Polygon
+      Database.Esqueleto.Postgis.Wkb.Geospatial
 
   hs-source-dirs:
       src

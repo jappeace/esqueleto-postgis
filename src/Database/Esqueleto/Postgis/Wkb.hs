@@ -6,6 +6,15 @@ module Database.Esqueleto.Postgis.Wkb
   ( parseByteString
   , parseHexByteString
   , toByteString
+  -- * core
+  -- | the greasy gears inside for experienced users or the brave!
+
+  -- ** geometry
+  , module Geometry
+  -- ** endian
+  , module Endian
+  -- ** point
+  , module Point
   ) where
 
 import qualified Data.Binary.Get              as BinaryGet
@@ -13,8 +22,9 @@ import qualified Data.ByteString.Builder      as ByteStringBuilder
 import qualified Data.ByteString.Lazy         as LazyByteString
 import qualified Data.Geospatial              as Geospatial
 
-import qualified Database.Esqueleto.Postgis.Wkb.Endian     as Endian
-import qualified Database.Esqueleto.Postgis.Wkb.Geometry   as Geometry
+import Database.Esqueleto.Postgis.Wkb.Endian     as Endian
+import Database.Esqueleto.Postgis.Wkb.Geometry   as Geometry
+import Database.Esqueleto.Postgis.Wkb.Point      as Point
 import qualified Database.Esqueleto.Postgis.Wkb.Geospatial as WkbGeospatial
 import Data.ByteString.Lazy.Base16(decodeBase16)
 import Data.Base16.Types(Base16)

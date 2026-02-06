@@ -10,11 +10,16 @@
 -- | Refer to the eWKB Postgis Documentation <https://postgis.net/docs/using_postgis_dbmanagement.html#EWKB_EWKT>
 --
 -- Allows parsing of ByteString into a Geospatial Object.
+-- These functions are used in the instance 'Database.Persist.Class.PersistField' instance
+-- to parse the database base16 output.
 --
 module Database.Esqueleto.Postgis.Ewkb
   ( parseByteString
   , parseHexByteString
   , toByteString
+  -- * core
+  -- the greasy gears inside for experienced users or the brave!
+  , module EwkbGeometry
   ) where
 
 import qualified Data.Binary.Get              as BinaryGet
@@ -22,7 +27,7 @@ import qualified Data.ByteString.Builder      as ByteStringBuilder
 import qualified Data.ByteString.Lazy         as LazyByteString
 import qualified Data.Geospatial              as Geospatial
 
-import qualified Database.Esqueleto.Postgis.Ewkb.Geometry  as EwkbGeometry
+import Database.Esqueleto.Postgis.Ewkb.Geometry  as EwkbGeometry
 import qualified Database.Esqueleto.Postgis.Wkb.Endian     as Endian
 import qualified Database.Esqueleto.Postgis.Wkb.Geospatial as WkbGeospatial
 import Data.ByteString.Lazy.Base16(decodeBase16)
