@@ -1,19 +1,22 @@
--- |  Refer to the WKB Wikipedia page <https://en.wikipedia.org/wiki/Well-known_text#Well-known_binary>
+-- | Ewkb is deeply integrated into Wkb, which is why we kept this around.
+-- For postgis we mostly want Ewkb.
 --
--- Allows parsing of ByteString into a Geospatial Object.
+-- This module Allows parsing of ByteString into a Geospatial Object,
+-- and provides foundational elements for constructing an Ewkb.
 --
+-- Refer to the WKB Wikipedia page <https://en.wikipedia.org/wiki/Well-known_text#Well-known_binary>
 module Database.Esqueleto.Postgis.Wkb
   ( parseByteString
   , parseHexByteString
   , toByteString
-  -- * core
+  -- * Core
   -- | the greasy gears inside for experienced users or the brave!
 
-  -- ** geometry
+  -- ** Geometry
   , module Geometry
-  -- ** endian
+  -- ** Endian
   , module Endian
-  -- ** point
+  -- ** Point
   , module Point
   ) where
 

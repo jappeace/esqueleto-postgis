@@ -7,18 +7,20 @@
 --   Apache license
 --
 --
--- | Refer to the eWKB Postgis Documentation <https://postgis.net/docs/using_postgis_dbmanagement.html#EWKB_EWKT>
+-- | Ewkb is the basis for postgis in postgres.
+--  This module  Allows parsing of ByteString into a Geospatial Object.
 --
--- Allows parsing of ByteString into a Geospatial Object.
 -- These functions are used in the instance 'Database.Persist.Class.PersistField' instance
--- to parse the database base16 output.
+-- to parse the database base16 output into types we can use.
+--
+-- Refer to the eWKB Postgis Documentation <https://postgis.net/docs/using_postgis_dbmanagement.html#EWKB_EWKT>
 --
 module Database.Esqueleto.Postgis.Ewkb
   ( parseByteString
   , parseHexByteString
   , toByteString
-  -- * core
-  -- the greasy gears inside for experienced users or the brave!
+  -- * Core
+  -- | the greasy gears inside for experienced users or the brave!
   , module EwkbGeometry
   ) where
 
