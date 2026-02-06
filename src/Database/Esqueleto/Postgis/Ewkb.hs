@@ -1,4 +1,4 @@
--- | I copied these because the original libraryy doesn't
+--  I copied these because the original libraryy doesn't
 --   appear to be maintained.
 --   I'm only interested in this parseHexBytestring function.
 --
@@ -7,11 +7,10 @@
 --   Apache license
 --
 --
--- Refer to the eWKB Postgis Documentation <https://postgis.net/docs/using_postgis_dbmanagement.html#EWKB_EWKT>
+-- | Refer to the eWKB Postgis Documentation <https://postgis.net/docs/using_postgis_dbmanagement.html#EWKB_EWKT>
 --
 -- Allows parsing of ByteString into a Geospatial Object.
 --
--------------------------------------------------------------------
 module Database.Esqueleto.Postgis.Ewkb
   ( parseByteString
   , parseHexByteString

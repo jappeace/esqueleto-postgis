@@ -1,8 +1,7 @@
--- Refer to the WKB Wikipedia page <https://en.wikipedia.org/wiki/Well-known_text#Well-known_binary>
+-- |  Refer to the WKB Wikipedia page <https://en.wikipedia.org/wiki/Well-known_text#Well-known_binary>
 --
 -- Allows parsing of ByteString into a Geospatial Object.
 --
--------------------------------------------------------------------
 module Database.Esqueleto.Postgis.Wkb
   ( parseByteString
   , parseHexByteString
