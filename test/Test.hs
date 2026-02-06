@@ -55,7 +55,6 @@ import qualified Ewkb.PointSpec
 import qualified Wkb.EndianSpec
 import qualified Wkb.GeometryCollectionSpec
 import qualified Wkb.GeometrySpec
-import qualified Wkb.HexParsingSpec
 import qualified Wkb.LineSpec
 import qualified Wkb.PointSpec
 import qualified Wkb.PolygonSpec
@@ -114,7 +113,6 @@ main = do
     testSpec "Wkb.EndianSpec" Wkb.EndianSpec.spec,
     testSpec "Wkb.GeometryCollectionSpec" Wkb.GeometryCollectionSpec.spec,
     testSpec "Wkb.GeometrySpec" Wkb.GeometrySpec.spec,
-    testSpec "Wkb.HexParsingSpec" Wkb.HexParsingSpec.spec,
     testSpec "Wkb.LineSpec" Wkb.LineSpec.spec,
     testSpec "Wkb.PointSpec" Wkb.PointSpec.spec,
     testSpec "Wkb.PolygonSpec" Wkb.PolygonSpec.spec

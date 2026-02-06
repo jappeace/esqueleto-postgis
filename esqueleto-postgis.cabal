@@ -77,7 +77,6 @@ library
   exposed-modules:
       Database.Esqueleto.Postgis
       Database.Esqueleto.Postgis.Ewkb
-      Database.Esqueleto.Postgis.Hex
       Database.Esqueleto.Postgis.Ewkb.Geometry
       Database.Esqueleto.Postgis.Wkb.Endian
       Database.Esqueleto.Postgis.Wkb.Geometry
@@ -104,7 +103,6 @@ test-suite unit
         Wkb.EndianSpec
         Wkb.GeometryCollectionSpec
         Wkb.GeometrySpec
-        Wkb.HexParsingSpec
         Wkb.LineSpec
         Wkb.PointSpec
         Wkb.PolygonSpec
