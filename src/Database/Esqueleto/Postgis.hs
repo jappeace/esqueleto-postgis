@@ -13,6 +13,7 @@ module Database.Esqueleto.Postgis
     st_contains,
     st_intersects,
     st_union,
+    st_unions,
 
     -- * points
     point,
@@ -46,7 +47,7 @@ import Data.Text.Lazy (toStrict)
 import Data.Text.Lazy.Builder (toLazyText)
 import Data.Text.Lazy.Builder qualified as Text
 import Database.Esqueleto.Experimental (SqlExpr, Value)
-import Database.Esqueleto.Internal.Internal (unsafeSqlFunction)
+import Database.Esqueleto.Internal.Internal (unsafeSqlFunction, unsafeSqlCastAs )
 import Database.Persist.Sql
 import Data.Base16.Types(assertBase16)
 import Data.ByteString(fromStrict)
@@ -246,7 +247,10 @@ st_contains ::
   SqlExpr (Value Bool)
 st_contains a b = unsafeSqlFunction "ST_CONTAINS" (a, b)
 
--- | allows union of geometries, eg group a bunch together, for example:
+
+-- | allows union of geometries, eg group a bunch together,
+--   https://postgis.net/docs/ST_Union.html
+--   for example:
 --
 -- @
 --  mCombined <- selectOne $ do
@@ -264,6 +268,16 @@ st_union ::
   SqlExpr (Value (PostgisGeometry a)) ->
   SqlExpr (Value (PostgisGeometry a))
 st_union a = unsafeSqlFunction "ST_union" a
+
+st_unions ::
+  SqlExpr (Value (PostgisGeometry a)) ->
+  SqlExpr (Value (PostgisGeometry a)) ->
+  SqlExpr (Value (PostgisGeometry a))
+st_unions a b =
+  -- casts to prevent
+  -- function st_union(unknown, unknown) is not unique", sqlErrorDetail = "", sqlErrorHint = "Could not choose a best candidate function. You might need to add explicit type casts.
+  -- TODO shouldn't we use sqlType here?
+  unsafeSqlFunction "ST_union" ((unsafeSqlCastAs "geometry" a), (unsafeSqlCastAs "geometry" b))
 
 -- | Returns true if two geometries intersect.
 --   Geometries intersect if they have any point in common.
