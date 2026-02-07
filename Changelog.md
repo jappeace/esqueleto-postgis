@@ -1,5 +1,8 @@
 # Change log for esqueleto-postgis project
 
+## Version 2.1.0 
+* add st_unions
+
 ## Version 2.0.1 
 * drop haskell works hedghog dependency
 

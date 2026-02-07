@@ -218,6 +218,12 @@ postgisBindingsTests =
                 grid <- from $ table @Grid
                 pure $ st_union $ grid ^. GridGeom
             unValue <$> result @?= (Just $ Polygon $ makeLinearRing (PointXY {_xyX = 0.0, _xyY = 2.0}) (PointXY {_xyX = 2.0, _xyY = 2.0}) (PointXY {_xyX = 4.0, _xyY = 2.0}) (Seq.fromList [PointXY {_xyX = 4.0, _xyY = 0.0}, PointXY {_xyX = 2.0, _xyY = 0.0}, PointXY {_xyX = 0.0, _xyY = 0.0}])),
+          testCase ("see if we can unions in PG and then get out some Haskell") $ do
+            result <- runDB $ do
+              selectOne $
+                pure $ st_unions (val (Polygon $ makePolygon (PointXY 0 0) (PointXY 0 2) (PointXY 2 2) $ Seq.fromList [(PointXY 2 0)])) $
+                        val $ Polygon $ makePolygon (PointXY 2 0) (PointXY 2 2) (PointXY 4 2) $ Seq.fromList [(PointXY 4 0)]
+            unValue <$> result @?= (Just $ Polygon $ makeLinearRing (PointXY {_xyX = 0.0, _xyY = 2.0}) (PointXY {_xyX = 2.0, _xyY = 2.0}) (PointXY {_xyX = 4.0, _xyY = 2.0}) (Seq.fromList [PointXY {_xyX = 4.0, _xyY = 0.0}, PointXY {_xyX = 2.0, _xyY = 0.0}, PointXY {_xyX = 0.0, _xyY = 0.0}])),
           testCase ("see if we can get just the units in the polygons") $ do
             result <- runDB $ do
               _ <-
