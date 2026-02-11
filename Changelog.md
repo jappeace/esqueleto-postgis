@@ -1,5 +1,8 @@
 # Change log for esqueleto-postgis project
 
+## Version 2.2.0 
+* add st_dwithin to find stuf within a range
+
 ## Version 2.1.0 
 * add st_unions
 

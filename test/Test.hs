@@ -275,7 +275,35 @@ postgisBindingsTests =
                   where_ $ (unit ^. UnitGeom) `st_intersects` (val $ unValue combined)
                 pure unit
 
-            entityVal <$> result @?= [Unit {unitGeom = Point (PointXY {_xyX = 1.0, _xyY = 1.0})}, Unit {unitGeom = Point (PointXY {_xyX = 1.0, _xyY = 2.0})}, Unit {unitGeom = Point (PointXY {_xyX = 2.0, _xyY = 2.0})}]
+            entityVal <$> result @?= [Unit {unitGeom = Point (PointXY {_xyX = 1.0, _xyY = 1.0})}, Unit {unitGeom = Point (PointXY {_xyX = 1.0, _xyY = 2.0})}, Unit {unitGeom = Point (PointXY {_xyX = 2.0, _xyY = 2.0})}],
+          testCase ("st_dwithin finds it wihtin range") $ do
+            result <- runDB $ do
+              _ <-
+                insert $
+                  Unit
+                    { unitGeom = point 1 1
+                    }
+
+              select $ do
+                unit <- from $ table @Unit
+                where_ $ st_dwithin (unit ^. UnitGeom) (st_point (val 1) (val 0)) (val 1)
+                pure unit
+
+            entityVal <$> result @?= [Unit {unitGeom = Point (PointXY {_xyX = 1.0, _xyY = 1.0})} ],
+          testCase ("st_dwithin doesn't finds it out range") $ do
+            result <- runDB $ do
+              _ <-
+                insert $
+                  Unit
+                    { unitGeom = point 1 1
+                    }
+
+              select $ do
+                unit <- from $ table @Unit
+                where_ $ st_dwithin (unit ^. UnitGeom) (st_point (val 2) (val 0)) (val 1)
+                pure unit
+
+            entityVal <$> result @?= []
         ]
     ]
 

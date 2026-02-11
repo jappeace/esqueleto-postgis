@@ -14,6 +14,7 @@ module Database.Esqueleto.Postgis
     st_intersects,
     st_union,
     st_unions,
+    st_dwithin,
 
     -- * points
     point,
@@ -247,6 +248,17 @@ st_contains ::
   SqlExpr (Value Bool)
 st_contains a b = unsafeSqlFunction "ST_CONTAINS" (a, b)
 
+-- | Returns true if the geometries are within a given distance
+--   https://postgis.net/docs/ST_DWithin.html
+st_dwithin ::
+  -- | geometry g1
+  SqlExpr (Value (PostgisGeometry a)) ->
+  -- | geometry g2
+  SqlExpr (Value (PostgisGeometry a)) ->
+  -- | distance of srid
+  SqlExpr (Value Double) ->
+  SqlExpr (Value Bool)
+st_dwithin a b c = unsafeSqlFunction "ST_DWithin" (a, b, c)
 
 -- | allows union of geometries, eg group a bunch together,
 --   https://postgis.net/docs/ST_Union.html
