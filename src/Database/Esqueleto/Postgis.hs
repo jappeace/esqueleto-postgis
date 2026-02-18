@@ -73,11 +73,19 @@ linearRingNonEmpty ls = ringHead ls :| drop 1 (fromLinearRing ls)
 tshow :: (Show a) => a -> Text
 tshow = pack . show
 
+
+-- | Spatial Reference System.
+data SpatialType = Geometry -- ^ assume a flat space.
+                 | Geography -- ^ assume curvature of the earth.
+
+type PostgisGeometry = Postgis 'Geometry
+
+
 -- | like 'GeospatialGeometry' but not partial, eg no empty geometries.
 --   Also can put an inveriant on dimensions if a function requires it.
 --   for example 'st_intersects' 'PostgisGeometry' 'PointXY' can't work with 'PostgisGeometry' 'PointXYZ'.
 --   PointXY indicates a 2 dimension space, and PointXYZ a three dimension space.
-data PostgisGeometry point
+data Postgis (spatialType :: SpatialType) point
   = Point point
   | MultiPoint (NonEmpty point)
   | Line (LineString point)
