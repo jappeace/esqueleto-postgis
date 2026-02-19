@@ -9,10 +9,9 @@
 -- | Haskell bindings for postgres postgis
 --   for a good explenation see <https://postgis.net/>
 module Database.Esqueleto.Postgis
-  ( PostgisGeometry,
+  (
     Postgis(..),
     SpatialType(..),
-    makePolygon,
     getPoints,
 
     -- * functions
@@ -29,6 +28,10 @@ module Database.Esqueleto.Postgis
     st_point,
     st_point_xyz,
     st_point_xyzm,
+    -- * other
+
+    makePolygon,
+    PostgisGeometry,
 
     -- * re-exports
     PointXY(..),
