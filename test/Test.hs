@@ -221,9 +221,24 @@ postgisBindingsTests =
           testCase ("see if we can unions in PG and then get out some Haskell") $ do
             result <- runDB $ do
               selectOne $
-                pure $ st_unions (val (Polygon $ makePolygon (PointXY 0 0) (PointXY 0 2) (PointXY 2 2) $ Seq.fromList [(PointXY 2 0)])) $
+                pure $ st_unions @'Geometry  (val (Polygon $ makePolygon (PointXY 0 0) (PointXY 0 2) (PointXY 2 2) $ Seq.fromList [(PointXY 2 0)])) $
                         val $ Polygon $ makePolygon (PointXY 2 0) (PointXY 2 2) (PointXY 4 2) $ Seq.fromList [(PointXY 4 0)]
             unValue <$> result @?= (Just $ Polygon $ makeLinearRing (PointXY {_xyX = 0.0, _xyY = 2.0}) (PointXY {_xyX = 2.0, _xyY = 2.0}) (PointXY {_xyX = 4.0, _xyY = 2.0}) (Seq.fromList [PointXY {_xyX = 4.0, _xyY = 0.0}, PointXY {_xyX = 2.0, _xyY = 0.0}, PointXY {_xyX = 0.0, _xyY = 0.0}])),
+
+          testCase ("st_distance@geom can distance PG and then get out some Haskell, doing it wrong with geometry") $ do
+            result <- runDB $ do
+              selectOne $
+                pure $ st_distance @'Geometry
+                    (point_v (-118.24) 34.05) -- LA
+                    (point_v (-74.00) 40.71) -- NYC
+            unValue <$> result @?= (Just  44.73849796316367), -- not 44km, but geometry does that
+          testCase ("st_distance@geography can distance PG and then get out some Haskell, doing it wrong with geometry") $ do
+            result <- runDB $ do
+              selectOne $
+                pure $ st_distance @'Geography
+                    (point_v (-118.24) 34.05) -- LA
+                    (point_v (-74.00) 40.71) -- NYC
+            unValue <$> result @?= (Just 3_944_735.82464902), -- correct! (in m)
           testCase ("see if we can get just the units in the polygons") $ do
             result <- runDB $ do
               _ <-

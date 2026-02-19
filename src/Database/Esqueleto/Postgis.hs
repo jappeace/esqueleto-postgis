@@ -11,6 +11,7 @@
 module Database.Esqueleto.Postgis
   ( PostgisGeometry,
     Postgis(..),
+    SpatialType(..),
     makePolygon,
     getPoints,
 
@@ -20,9 +21,11 @@ module Database.Esqueleto.Postgis
     st_union,
     st_unions,
     st_dwithin,
+    st_distance         ,
 
     -- * points
     point,
+    point_v,
     st_point,
     st_point_xyz,
     st_point_xyzm,
@@ -34,6 +37,7 @@ module Database.Esqueleto.Postgis
   )
 where
 
+import Database.Esqueleto.Experimental(val)
 import Data.Proxy
 import Data.Bifunctor (first)
 import Database.Esqueleto.Postgis.Ewkb (parseHexByteString)
@@ -299,19 +303,21 @@ st_dwithin a b c = unsafeSqlFunction "ST_DWithin" (a, b, c)
 --    pure unit
 -- @
 st_union ::
-  SqlExpr (Value (PostgisGeometry a)) ->
-  SqlExpr (Value (PostgisGeometry a))
+  SqlExpr (Value (Postgis spatialType a)) ->
+  SqlExpr (Value (Postgis spatialType a))
 st_union a = unsafeSqlFunction "ST_union" a
 
 st_unions ::
-  SqlExpr (Value (PostgisGeometry a)) ->
-  SqlExpr (Value (PostgisGeometry a)) ->
-  SqlExpr (Value (PostgisGeometry a))
+  forall spatialType a . HasPgType spatialType =>
+  SqlExpr (Value (Postgis spatialType a)) ->
+  SqlExpr (Value (Postgis spatialType a)) ->
+  SqlExpr (Value (Postgis spatialType a))
 st_unions a b =
   -- casts to prevent
   -- function st_union(unknown, unknown) is not unique", sqlErrorDetail = "", sqlErrorHint = "Could not choose a best candidate function. You might need to add explicit type casts.
-  -- TODO shouldn't we use sqlType here?
-  unsafeSqlFunction "ST_union" ((unsafeSqlCastAs "geometry" a), (unsafeSqlCastAs "geometry" b))
+  unsafeSqlFunction "ST_union" ((unsafeSqlCastAs casted a), (unsafeSqlCastAs casted b))
+  where
+    casted = (pgType $ Proxy @spatialType)
 
 -- | calculate the distance between two points
 --   https://postgis.net/docs/ST_Distance.html
@@ -319,7 +325,8 @@ st_distance ::
   SqlExpr (Value (Postgis spatialType a)) ->
   SqlExpr (Value (Postgis spatialType a)) ->
   SqlExpr (Value Double)
-st_distance
+st_distance a b =
+  unsafeSqlFunction "ST_distance" (a, b)
 
 -- | Returns true if two geometries intersect.
 --   Geometries intersect if they have any point in common.
@@ -330,8 +337,11 @@ st_intersects ::
   SqlExpr (Value Bool)
 st_intersects a b = unsafeSqlFunction "ST_Intersects" (a, b)
 
-point :: Double -> Double -> (PostgisGeometry PointXY)
+point :: Double -> Double -> (Postgis spatialType PointXY)
 point x y = Point (PointXY {_xyX = x, _xyY = y})
+
+point_v :: HasPgType spatialType => Double -> Double -> SqlExpr (Value (Postgis spatialType PointXY))
+point_v = fmap val . point
 
 st_point :: SqlExpr (Value Double) -> SqlExpr (Value Double) -> SqlExpr (Value (Postgis spatialType PointXY))
 st_point a b = unsafeSqlFunction "ST_POINT" (a, b)
