@@ -171,14 +171,10 @@ renderXYZM :: PointXYZM -> Text.Builder
 renderXYZM (PointXYZM {..}) = fromString (show _xyzmX) <> " " <> fromString (show _xyzmY) <> " " <> fromString (show _xyzmZ) <> " " <> fromString (show _xyzmM)
 
 renderGeometry :: forall (spatialType :: SpatialType) . HasPgType spatialType => Postgis spatialType Text.Builder -> Text.Builder
-renderGeometry = \case
-  Point point' -> "'POINT(" <> point' <> ")' :: " <> (Text.fromText $ pgType $ (Proxy @spatialType) )
-  MultiPoint points -> "'MULTIPOINT (" <> fold (Non.intersperse "," ((\x -> "(" <> x <> ")") <$> points)) <> ")'"
-  Line line -> "'LINESTRING(" <> renderLines line <> ")'"
-  Multiline multiline -> "'MULTILINESTRING(" <> fold (Non.intersperse "," ((\line -> "(" <> renderLines line <> ")") <$> multiline)) <> ")'"
-  Polygon polygon -> "'POLYGON((" <> renderLines polygon <> "))'"
-  MultiPolygon multipolygon -> "'MULTIPOLYGON(" <> fold (Non.intersperse "," ((\line -> "((" <> renderLines line <> "))") <$> multipolygon)) <> ")'"
-  Collection collection -> "'GEOMETRYCOLLECTION(" <> fold (Non.intersperse "," (renderGeometryUntyped <$> collection)) <> ")'"
+renderGeometry geom =
+  let result = renderGeometryUntyped geom
+  -- wrap it in quotes and cast it to whatever type we decided it should be
+  in "'" <> result <> "' :: " <> (Text.fromText $ pgType $ (Proxy @spatialType) )
 
 -- can't add quotes and types in the recursion because it's already part of the string
 renderGeometryUntyped :: Postgis spatialType Text.Builder -> Text.Builder
@@ -268,9 +264,9 @@ instance HasPgType spatialType => PersistFieldSql (Postgis spatialType PointXYZM
 --   https://postgis.net/docs/ST_Contains.html
 st_contains ::
   -- | geom a
-  SqlExpr (Value (PostgisGeometry a)) ->
+  SqlExpr (Value (Postgis spatialType a)) ->
   -- | geom b
-  SqlExpr (Value (PostgisGeometry a)) ->
+  SqlExpr (Value (Postgis spatialType a)) ->
   SqlExpr (Value Bool)
 st_contains a b = unsafeSqlFunction "ST_CONTAINS" (a, b)
 
@@ -278,9 +274,9 @@ st_contains a b = unsafeSqlFunction "ST_CONTAINS" (a, b)
 --   https://postgis.net/docs/ST_DWithin.html
 st_dwithin ::
   -- | geometry g1
-  SqlExpr (Value (PostgisGeometry a)) ->
+  SqlExpr (Value (Postgis spatialType a)) ->
   -- | geometry g2
-  SqlExpr (Value (PostgisGeometry a)) ->
+  SqlExpr (Value (Postgis spatialType a)) ->
   -- | distance of srid
   SqlExpr (Value Double) ->
   SqlExpr (Value Bool)
