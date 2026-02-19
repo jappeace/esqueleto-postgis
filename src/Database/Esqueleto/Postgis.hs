@@ -1,11 +1,16 @@
 {-# LANGUAGE ImportQualifiedPost #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE KindSignatures #-}
+{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
 -- | Haskell bindings for postgres postgis
 --   for a good explenation see <https://postgis.net/>
 module Database.Esqueleto.Postgis
-  ( PostgisGeometry (..),
+  ( PostgisGeometry,
+    Postgis(..),
     makePolygon,
     getPoints,
 
@@ -29,6 +34,7 @@ module Database.Esqueleto.Postgis
   )
 where
 
+import Data.Proxy
 import Data.Bifunctor (first)
 import Database.Esqueleto.Postgis.Ewkb (parseHexByteString)
 import Data.Foldable (Foldable (toList), fold)
@@ -44,6 +50,7 @@ import Data.Sequence (Seq (..), (|>))
 import Data.Sequence qualified as Seq
 import Data.String (IsString (..))
 import Data.Text (Text, pack)
+import Data.Text.Encoding(encodeUtf8)
 import Data.Text.Lazy (toStrict)
 import Data.Text.Lazy.Builder (toLazyText)
 import Data.Text.Lazy.Builder qualified as Text
@@ -78,6 +85,16 @@ tshow = pack . show
 data SpatialType = Geometry -- ^ assume a flat space.
                  | Geography -- ^ assume curvature of the earth.
 
+class HasPgType (spatialType :: SpatialType) where
+  pgType :: Proxy spatialType -> Text
+
+instance HasPgType 'Geometry where
+  pgType _ = "geometry"
+
+instance HasPgType 'Geography where
+  pgType _ = "geography"
+
+-- | backwards compatibility, initial version only dealt in geometry
 type PostgisGeometry = Postgis 'Geometry
 
 
@@ -149,30 +166,33 @@ renderXYZ (PointXYZ {..}) = fromString (show _xyzX) <> " " <> fromString (show _
 renderXYZM :: PointXYZM -> Text.Builder
 renderXYZM (PointXYZM {..}) = fromString (show _xyzmX) <> " " <> fromString (show _xyzmY) <> " " <> fromString (show _xyzmZ) <> " " <> fromString (show _xyzmM)
 
-renderGeometry :: PostgisGeometry Text.Builder -> Text.Builder
+renderGeometry :: forall (spatialType :: SpatialType) . HasPgType spatialType => Postgis spatialType Text.Builder -> Text.Builder
 renderGeometry = \case
+  Point point' -> "'POINT(" <> point' <> ")' :: " <> (Text.fromText $ pgType $ (Proxy @spatialType) )
+  MultiPoint points -> "'MULTIPOINT (" <> fold (Non.intersperse "," ((\x -> "(" <> x <> ")") <$> points)) <> ")'"
+  Line line -> "'LINESTRING(" <> renderLines line <> ")'"
+  Multiline multiline -> "'MULTILINESTRING(" <> fold (Non.intersperse "," ((\line -> "(" <> renderLines line <> ")") <$> multiline)) <> ")'"
+  Polygon polygon -> "'POLYGON((" <> renderLines polygon <> "))'"
+  MultiPolygon multipolygon -> "'MULTIPOLYGON(" <> fold (Non.intersperse "," ((\line -> "((" <> renderLines line <> "))") <$> multipolygon)) <> ")'"
+  Collection collection -> "'GEOMETRYCOLLECTION(" <> fold (Non.intersperse "," (renderGeometryUntyped <$> collection)) <> ")'"
+
+-- can't add quotes and types in the recursion because it's already part of the string
+renderGeometryUntyped :: Postgis spatialType Text.Builder -> Text.Builder
+renderGeometryUntyped = \case
   Point point' -> "POINT(" <> point' <> ")"
   MultiPoint points -> "MULTIPOINT (" <> fold (Non.intersperse "," ((\x -> "(" <> x <> ")") <$> points)) <> ")"
   Line line -> "LINESTRING(" <> renderLines line <> ")"
   Multiline multiline -> "MULTILINESTRING(" <> fold (Non.intersperse "," ((\line -> "(" <> renderLines line <> ")") <$> multiline)) <> ")"
   Polygon polygon -> "POLYGON((" <> renderLines polygon <> "))"
   MultiPolygon multipolygon -> "MULTIPOLYGON(" <> fold (Non.intersperse "," ((\line -> "((" <> renderLines line <> "))") <$> multipolygon)) <> ")"
-  Collection collection -> "GEOMETRYCOLLECTION(" <> fold (Non.intersperse "," (renderGeometry <$> collection)) <> ")"
+  Collection collection -> "GEOMETRYCOLLECTION(" <> fold (Non.intersperse "," (renderGeometryUntyped <$> collection)) <> ")"
 
-extractFirst :: PostgisGeometry a -> a
-extractFirst = \case
-  Point point' -> point'
-  MultiPoint points -> Non.head points
-  Line line -> lineStringHead line
-  Multiline multiline -> lineStringHead $ Non.head multiline
-  Polygon polygon -> ringHead polygon
-  MultiPolygon multipolygon -> ringHead $ Non.head multipolygon
-  Collection collection -> extractFirst $ Non.head collection
+
 
 renderLines :: (Foldable f) => f Text.Builder -> Text.Builder
 renderLines line = fold (List.intersperse "," $ toList line)
 
-from2dGeospatialGeometry :: (Eq a, Show a) => (GeoPositionWithoutCRS -> Either GeomErrors a) -> GeospatialGeometry -> Either GeomErrors (PostgisGeometry a)
+from2dGeospatialGeometry :: (Eq a, Show a) => (GeoPositionWithoutCRS -> Either GeomErrors a) -> GeospatialGeometry -> Either GeomErrors (Postgis spatialType a)
 from2dGeospatialGeometry interpreter = \case
   Geospatial.NoGeometry -> Left NoGeometry
   Geospatial.Point (GeoPoint point') -> (Point <$> interpreter point')
@@ -206,45 +226,39 @@ toLinearRing interpreter polygon = do
     (one :<| two :<| three :<| rem') -> Right $ makeLinearRing one two three rem'
     _other -> Left NotEnoughElements
 
-instance PersistField PointXY where
-  toPersistValue geom = toPersistValue (Point geom)
-  fromPersistValue x = extractFirst <$> fromPersistValue x
-
-instance PersistFieldSql PointXY where
-  sqlType _ = SqlOther "geometry"
-
-instance PersistField (PostgisGeometry PointXY) where
+instance HasPgType spatialType => PersistField (Postgis spatialType PointXY) where
   toPersistValue geom =
-    PersistText $ toStrict $ toLazyText $ renderGeometry $ renderPair <$> geom
+    PersistLiteral_ Unescaped $ encodeUtf8 $ toStrict $ toLazyText $ renderGeometry  $ renderPair <$> geom
   fromPersistValue (PersistLiteral_ Escaped bs) = do
     result <- first pack $ parseHexByteString $ assertBase16 $ fromStrict bs
     first tshow $ (from2dGeospatialGeometry from2dGeoPositionWithoutCRSToPoint) result
   fromPersistValue other = Left ("PersistField.Polygon: invalid persist value:" <> tshow other)
 
-instance PersistField (PostgisGeometry PointXYZ) where
+instance HasPgType spatialType => PersistField (Postgis spatialType PointXYZ) where
   toPersistValue geom =
-    PersistText $ toStrict $ toLazyText $ renderGeometry $ renderXYZ <$> geom
+    PersistLiteral_ Unescaped $ encodeUtf8 $ toStrict $ toLazyText $ renderGeometry $ renderXYZ <$> geom
   fromPersistValue (PersistLiteral_ Escaped bs) = do
     result <- first pack $ parseHexByteString $ assertBase16 $ fromStrict bs
     first tshow $ (from2dGeospatialGeometry from3dGeoPositionWithoutCRSToPoint) result
   fromPersistValue other = Left ("PersistField.Polygon: invalid persist value:" <> tshow other)
 
-instance PersistField (PostgisGeometry PointXYZM) where
+instance HasPgType spatialType => PersistField (Postgis spatialType PointXYZM) where
   toPersistValue geom =
-    PersistText $ toStrict $ toLazyText $ renderGeometry $ renderXYZM <$> geom
+    PersistLiteral_ Unescaped $ encodeUtf8 $ toStrict $ toLazyText $ renderGeometry $ renderXYZM <$> geom
   fromPersistValue (PersistLiteral_ Escaped bs) = do
     result <- first pack $ parseHexByteString $ assertBase16 $ fromStrict bs
     first tshow $ (from2dGeospatialGeometry from4dGeoPositionWithoutCRSToPoint) result
   fromPersistValue other = Left ("PersistField.Polygon: invalid persist value:" <> tshow other)
 
-instance PersistFieldSql (PostgisGeometry PointXY) where
-  sqlType _ = SqlOther "geometry"
+instance forall spatialType . HasPgType spatialType => PersistFieldSql (Postgis spatialType PointXY) where
+  sqlType _ = SqlOther $ pgType $ Proxy @spatialType
 
-instance PersistFieldSql (PostgisGeometry PointXYZ) where
-  sqlType _ = SqlOther "geometry"
+instance HasPgType spatialType => PersistFieldSql (Postgis spatialType PointXYZ) where
+  sqlType _ = SqlOther $ pgType $ Proxy @spatialType
 
-instance PersistFieldSql (PostgisGeometry PointXYZM) where
-  sqlType _ = SqlOther "geometry"
+instance HasPgType spatialType => PersistFieldSql (Postgis spatialType PointXYZM) where
+  sqlType _ = SqlOther $ pgType $ Proxy @spatialType
+
 
 -- | Returns TRUE if geometry A contains geometry B.
 --   https://postgis.net/docs/ST_Contains.html
@@ -299,6 +313,14 @@ st_unions a b =
   -- TODO shouldn't we use sqlType here?
   unsafeSqlFunction "ST_union" ((unsafeSqlCastAs "geometry" a), (unsafeSqlCastAs "geometry" b))
 
+-- | calculate the distance between two points
+--   https://postgis.net/docs/ST_Distance.html
+st_distance ::
+  SqlExpr (Value (Postgis spatialType a)) ->
+  SqlExpr (Value (Postgis spatialType a)) ->
+  SqlExpr (Value Double)
+st_distance
+
 -- | Returns true if two geometries intersect.
 --   Geometries intersect if they have any point in common.
 --   https://postgis.net/docs/ST_Intersects.html
@@ -311,11 +333,12 @@ st_intersects a b = unsafeSqlFunction "ST_Intersects" (a, b)
 point :: Double -> Double -> (PostgisGeometry PointXY)
 point x y = Point (PointXY {_xyX = x, _xyY = y})
 
-st_point :: SqlExpr (Value Double) -> SqlExpr (Value Double) -> SqlExpr (Value (PostgisGeometry PointXY))
+st_point :: SqlExpr (Value Double) -> SqlExpr (Value Double) -> SqlExpr (Value (Postgis spatialType PointXY))
 st_point a b = unsafeSqlFunction "ST_POINT" (a, b)
 
-st_point_xyz :: SqlExpr (Value Double) -> SqlExpr (Value Double) -> SqlExpr (Value Double) -> SqlExpr (Value (PostgisGeometry PointXYZ))
+st_point_xyz :: SqlExpr (Value Double) -> SqlExpr (Value Double) -> SqlExpr (Value Double) -> SqlExpr (Value (Postgis spatialType PointXYZ))
 st_point_xyz a b c = unsafeSqlFunction "ST_POINT" (a, b, c)
 
-st_point_xyzm :: SqlExpr (Value Double) -> SqlExpr (Value Double) -> SqlExpr (Value Double) -> SqlExpr (Value Double) -> SqlExpr (Value (PostgisGeometry PointXYZM))
+st_point_xyzm :: SqlExpr (Value Double) -> SqlExpr (Value Double) -> SqlExpr (Value Double) -> SqlExpr (Value Double) -> SqlExpr (Value (Postgis spatialType PointXYZM))
 st_point_xyzm a b c m = unsafeSqlFunction "ST_POINT" (a, b, c, m)
+

@@ -153,14 +153,14 @@ postgisBindingsTests :: TestTree
 postgisBindingsTests =
   testGroup
     "postgis binding tests"
-    [ testGroup "roundtrip tests xy" $
+    [ testGroup "roundtrip_tests_xy" $
         (test') <$> (genCollection genPointxy : genGeometry genPointxy),
       testGroup "roundtrip tests xyz" $
         (testxyz) <$> (genCollection genPointxyz : genGeometry genPointxyz),
       testGroup "roundtrip tests xyzm" $
         (testxyzm) <$> (genCollection genPointxyzm : genGeometry genPointxyzm),
       testGroup "function bindings" $
-        [ testCase ("it finds the one unit with st_contains") $ do
+        [ testCase ("it_finds_the_one_unit_with st_contains") $ do
             result <- runDB $ do
               _ <-
                 insert $
