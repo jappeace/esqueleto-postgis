@@ -1,5 +1,43 @@
 # Change log for esqueleto-postgis project
 
+## Version 3.0.0 
+* add spatial type, split up postgis from geoemetry.
+  this will allow us to deal with curveture of earth and other weird SRID's:
+  consider:
+```
+converge=# SELECT ST_Distance(
+    ST_MakePoint(-118.24, 34.05)::geometry, -- LA
+    ST_MakePoint(-74.00, 40.71)::geometry   -- NYC
+) as distance_in_km;
+  distance_in_km   
+-------------------
+ 44.73849796316367
+(1 row)
+
+converge=# SELECT ST_Distance(
+    ST_MakePoint(-118.24, 34.05)::geography, 
+    ST_MakePoint(-74.00, 40.71)::geography
+) / 1000 as distance_in_km;
+   distance_in_km   
+--------------------
+ 3944.7358246490203
+(1 row)
+```
+The change is mostly backward compatible, 
+but I deleted some instances I didn't want to solve.
+Furthermore the postgis type is arguably a bit more complicated now.
+
+I did have some minor breakage in the test suite on st_unions: 
+```
+-                pure $ st_unions (val (Polygon $ makePolygon (PointXY 0 0) (PointXY 0 2) (PointXY 2 2) $ Seq.fromList [(PointXY 2 0)])) $
++                pure $ st_unions @'Geometry  (val (Polygon $ makePolygon (PointXY 0 0) (PointXY 0 2) (PointXY 2 2) $ Seq.fromList [(PointXY 2 0)])) $
+```
+You may need to tell the compiler weather to use geometry or geography.
+But then it'll happen correct within the database as well.
+
+We don't allow mixing of the two.
+
+
 ## Version 2.2.0 
 * add st_dwithin to find stuf within a range
 
