@@ -27,6 +27,16 @@ The change is mostly backward compatible,
 but I deleted some instances I didn't want to solve.
 Furthermore the postgis type is arguably a bit more complicated now.
 
+I did have some minor breakage in the test suite on st_unions: 
+```
+-                pure $ st_unions (val (Polygon $ makePolygon (PointXY 0 0) (PointXY 0 2) (PointXY 2 2) $ Seq.fromList [(PointXY 2 0)])) $
++                pure $ st_unions @'Geometry  (val (Polygon $ makePolygon (PointXY 0 0) (PointXY 0 2) (PointXY 2 2) $ Seq.fromList [(PointXY 2 0)])) $
+```
+You may need to tell the compiler weather to use geometry or geography.
+But then it'll happen correct within the database as well.
+
+We don't allow mixing of the two.
+
 
 ## Version 2.2.0 
 * add st_dwithin to find stuf within a range
