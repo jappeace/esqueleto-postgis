@@ -1,5 +1,13 @@
 # Change log for esqueleto-postgis project
 
+## Version 4.0.0 
+Hotfix!
+
++ `st_union` can't work on geography, banned that.
++ `st_intersects` was to strict and worked only on geography
++ add `st_transform_geometry` and `st_transform_geography` to convert between the two.
++ hopefully I've explained the srid system somewhat understandable, it's kinda confusing.
+
 ## Version 3.0.0 
 * add spatial type, split up postgis from geoemetry.
   this will allow us to deal with curveture of earth and other weird SRID's:

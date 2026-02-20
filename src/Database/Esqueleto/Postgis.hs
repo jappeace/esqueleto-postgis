@@ -21,6 +21,9 @@ module Database.Esqueleto.Postgis
     st_unions,
     st_dwithin,
     st_distance         ,
+    -- * transform
+    st_transform_geography,
+    st_transform_geometry,
 
     -- * points
     point,
@@ -28,10 +31,18 @@ module Database.Esqueleto.Postgis
     st_point,
     st_point_xyz,
     st_point_xyzm,
-    -- * other
+    -- * srid
+    SRID,
+    wgs84,
+    mercator ,
+    britishNationalGrid,
+    SridUnit    (..),
 
+
+    -- * other
     makePolygon,
     PostgisGeometry,
+    HasPgType,
 
     -- * re-exports
     PointXY(..),
@@ -92,6 +103,9 @@ tshow = pack . show
 data SpatialType = Geometry -- ^ assume a flat space.
                  | Geography -- ^ assume curvature of the earth.
 
+-- | technical typeclass to bind a spatial type to a string value.
+--   because we represent the constructors as a datakind, we need
+--   this to go back to a value.
 class HasPgType (spatialType :: SpatialType) where
   pgType :: Proxy spatialType -> Text
 
@@ -302,21 +316,70 @@ st_dwithin a b c = unsafeSqlFunction "ST_DWithin" (a, b, c)
 --    pure unit
 -- @
 st_union ::
-  SqlExpr (Value (Postgis spatialType a)) ->
-  SqlExpr (Value (Postgis spatialType a))
+  SqlExpr (Value (Postgis 'Geometry a)) ->
+  SqlExpr (Value (Postgis 'Geometry a))
 st_union a = unsafeSqlFunction "ST_union" a
 
+-- | SRID
+-- you can find your local like this: https://blog.rustprooflabs.com/2020/11/postgis-find-local-srid
+-- geography appears to use 'wgs84'. So I hardcoded the use going from geom to geography as that.
+--
+-- if you miss a srid please submit a PR
+newtype SRID (unit :: SridUnit) = SRID Int
+  deriving newtype (Num, PersistField)
+
+-- | https://epsg.io/4326
+wgs84 :: SRID 'Degree
+wgs84 = 4326
+
+-- | https://epsg.io/3857
+mercator :: SRID 'Linear
+mercator = 3857
+
+britishNationalGrid :: SRID 'Linear
+britishNationalGrid = 27700
+
+
+-- | Diferent 'SRID' come in different units, this is important
+--   for converting from geograhy to geometry to get right.
+data SridUnit = Linear -- ^ meters or feet
+          | Degree -- ^ spheroids
+
+-- | project a geography onto a geometry.
+st_transform_geography :: forall a. SRID 'Linear ->
+                        SqlExpr (Value (Postgis 'Geography a)) -> -- ^ g1 (library handles the conversion)
+                        SqlExpr (Value (Postgis 'Geometry a))
+st_transform_geography srid geography =
+  unsafeSqlFunction "ST_Transform" (casted, val srid)
+  where
+    casted :: SqlExpr (Value (Postgis 'Geometry a))
+    casted = unsafe_cast_pg_type geography
+
+st_transform_geometry :: SqlExpr (Value (Postgis 'Geometry a)) -> -- ^ g1 (library handles the conversion)
+                        SqlExpr (Value (Postgis 'Geography a))
+st_transform_geometry input = unsafe_cast_pg_type transformed
+  where
+    transformed :: SqlExpr (Value (Postgis 'Geometry a))
+    transformed =
+      unsafeSqlFunction "ST_Transform" (input, val wgs84)
+
+-- postgis doesn't appear to care about casting between spaces,
+-- the user probably wants to use st_transform instead.
+unsafe_cast_pg_type :: forall two one a . HasPgType two => SqlExpr (Value (Postgis one a)) -> SqlExpr (Value (Postgis two a))
+unsafe_cast_pg_type = unsafeSqlCastAs castAs
+  where
+    castAs = pgType $ Proxy @two
+
 st_unions ::
-  forall spatialType a . HasPgType spatialType =>
-  SqlExpr (Value (Postgis spatialType a)) ->
-  SqlExpr (Value (Postgis spatialType a)) ->
-  SqlExpr (Value (Postgis spatialType a))
+  SqlExpr (Value (Postgis 'Geometry a)) ->
+  SqlExpr (Value (Postgis 'Geometry a)) ->
+  SqlExpr (Value (Postgis 'Geometry a))
 st_unions a b =
   -- casts to prevent
   -- function st_union(unknown, unknown) is not unique", sqlErrorDetail = "", sqlErrorHint = "Could not choose a best candidate function. You might need to add explicit type casts.
   unsafeSqlFunction "ST_union" ((unsafeSqlCastAs casted a), (unsafeSqlCastAs casted b))
   where
-    casted = (pgType $ Proxy @spatialType)
+    casted = (pgType $ Proxy @'Geometry)
 
 -- | calculate the distance between two points
 --   https://postgis.net/docs/ST_Distance.html
@@ -331,8 +394,8 @@ st_distance a b =
 --   Geometries intersect if they have any point in common.
 --   https://postgis.net/docs/ST_Intersects.html
 st_intersects ::
-  SqlExpr (Value (PostgisGeometry a)) ->
-  SqlExpr (Value (PostgisGeometry a)) ->
+  SqlExpr (Value (Postgis spatialType a)) -> -- ^ geomA or geogA
+  SqlExpr (Value (Postgis spatialType a)) -> -- ^ geomB or geogB
   SqlExpr (Value Bool)
 st_intersects a b = unsafeSqlFunction "ST_Intersects" (a, b)
 
