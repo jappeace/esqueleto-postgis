@@ -8,6 +8,13 @@
 
 -- | Haskell bindings for postgres postgis
 --   for a good explenation see <https://postgis.net/>
+--
+--   Make sure to use the correct 'SpatialType'.
+--   Earth spanning applications should use Geography,
+--   local applications should use 'Geometry' because it's more convenient.
+--
+--   if you can't use a function for example when you're using 'Geography'.
+--   there is the option to 'st_transform_geography'.
 module Database.Esqueleto.Postgis
   (
     Postgis(..),
@@ -100,7 +107,8 @@ tshow :: (Show a) => a -> Text
 tshow = pack . show
 
 
--- | Spatial Reference System.
+-- | Guarantees we don't accidently mix curved space with flat space.
+--   Postgis will catch this too, this just put's it in the type system.
 data SpatialType = Geometry -- ^ assume a flat space.
                  | Geography -- ^ assume curvature of the earth.
 

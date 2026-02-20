@@ -7,6 +7,7 @@ Hotfix!
 + `st_intersects` was to strict and worked only on geography
 + add `st_transform_geometry` and `st_transform_geography` to convert between the two.
 + hopefully I've explained the srid system somewhat understandable, it's kinda confusing.
++ restrict `st_contains` to geometry as well        .
 
 ## Version 3.0.0 
 * add spatial type, split up postgis from geoemetry.
