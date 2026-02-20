@@ -21,9 +21,6 @@ module Database.Esqueleto.Postgis
     st_unions,
     st_dwithin,
     st_distance         ,
-    -- * transform
-    st_transform_geography,
-    st_transform_geometry,
 
     -- * points
     point,
@@ -31,7 +28,11 @@ module Database.Esqueleto.Postgis
     st_point,
     st_point_xyz,
     st_point_xyzm,
-    -- * srid
+
+    -- * transform
+    st_transform_geography,
+    st_transform_geometry,
+    -- ** srid
     SRID,
     wgs84,
     mercator ,
@@ -281,9 +282,9 @@ instance HasPgType spatialType => PersistFieldSql (Postgis spatialType PointXYZM
 --   https://postgis.net/docs/ST_Contains.html
 st_contains ::
   -- | geom a
-  SqlExpr (Value (Postgis spatialType a)) ->
+  SqlExpr (Value (Postgis 'Geometry a)) ->
   -- | geom b
-  SqlExpr (Value (Postgis spatialType a)) ->
+  SqlExpr (Value (Postgis 'Geometry a)) ->
   SqlExpr (Value Bool)
 st_contains a b = unsafeSqlFunction "ST_CONTAINS" (a, b)
 
@@ -298,6 +299,66 @@ st_dwithin ::
   SqlExpr (Value Double) ->
   SqlExpr (Value Bool)
 st_dwithin a b c = unsafeSqlFunction "ST_DWithin" (a, b, c)
+
+-- | SRID
+-- you can find your local like this: https://blog.rustprooflabs.com/2020/11/postgis-find-local-srid
+-- geography appears to use 'wgs84'. So I hardcoded the use going from geom to geography as that.
+--
+-- you can use the num instance to put in whatever.
+-- however, if you miss a srid please submit a PR.
+newtype SRID (unit :: SridUnit) = SRID Int
+  deriving newtype (Num, PersistField)
+
+-- | default for geography type in postgis.
+--   Geodetic CRS: WGS 84
+--   https://epsg.io/4326
+wgs84 :: SRID 'Degree
+wgs84 = 4326
+
+-- | most maps are in this, it has some large distortions further away from equator
+--   https://epsg.io/3857
+mercator :: SRID 'Linear
+mercator = 3857
+
+-- | if you're in england this is pretty good.
+--   https://epsg.io/27700
+britishNationalGrid :: SRID 'Linear
+britishNationalGrid = 27700
+
+
+-- | Diferent 'SRID' come in different units,
+--   important for converting from geograhy to geometry.
+data SridUnit = Linear -- ^ meters or feet
+          | Degree -- ^ spheroids
+
+-- | Project a geography onto a geometry.
+--   allows using of functions such as 'st_union' which only work in flat space (geometry).
+--   https://postgis.net/docs/ST_Transform.html
+st_transform_geography :: forall a. SRID 'Linear ->
+                        SqlExpr (Value (Postgis 'Geography a)) -> -- ^ g1 (library handles the conversion)
+                        SqlExpr (Value (Postgis 'Geometry a))
+st_transform_geography srid geography =
+  unsafeSqlFunction "ST_Transform" (casted, val srid)
+  where
+    casted :: SqlExpr (Value (Postgis 'Geometry a))
+    casted = unsafe_cast_pg_type geography
+
+-- | project a geometry as a geography, assumes 'wgs84'.
+--   https://postgis.net/docs/ST_Transform.html
+st_transform_geometry :: SqlExpr (Value (Postgis 'Geometry a)) -> -- ^ g1 (library handles the conversion)
+                        SqlExpr (Value (Postgis 'Geography a))
+st_transform_geometry input = unsafe_cast_pg_type transformed
+  where
+    transformed :: SqlExpr (Value (Postgis 'Geometry a))
+    transformed =
+      unsafeSqlFunction "ST_Transform" (input, val wgs84)
+
+-- postgis doesn't appear to care about casting between spaces,
+-- the user probably wants to use st_transform instead.
+unsafe_cast_pg_type :: forall two one a . HasPgType two => SqlExpr (Value (Postgis one a)) -> SqlExpr (Value (Postgis two a))
+unsafe_cast_pg_type = unsafeSqlCastAs castAs
+  where
+    castAs = pgType $ Proxy @two
 
 -- | allows union of geometries, eg group a bunch together,
 --   https://postgis.net/docs/ST_Union.html
@@ -319,56 +380,6 @@ st_union ::
   SqlExpr (Value (Postgis 'Geometry a)) ->
   SqlExpr (Value (Postgis 'Geometry a))
 st_union a = unsafeSqlFunction "ST_union" a
-
--- | SRID
--- you can find your local like this: https://blog.rustprooflabs.com/2020/11/postgis-find-local-srid
--- geography appears to use 'wgs84'. So I hardcoded the use going from geom to geography as that.
---
--- if you miss a srid please submit a PR
-newtype SRID (unit :: SridUnit) = SRID Int
-  deriving newtype (Num, PersistField)
-
--- | https://epsg.io/4326
-wgs84 :: SRID 'Degree
-wgs84 = 4326
-
--- | https://epsg.io/3857
-mercator :: SRID 'Linear
-mercator = 3857
-
-britishNationalGrid :: SRID 'Linear
-britishNationalGrid = 27700
-
-
--- | Diferent 'SRID' come in different units, this is important
---   for converting from geograhy to geometry to get right.
-data SridUnit = Linear -- ^ meters or feet
-          | Degree -- ^ spheroids
-
--- | project a geography onto a geometry.
-st_transform_geography :: forall a. SRID 'Linear ->
-                        SqlExpr (Value (Postgis 'Geography a)) -> -- ^ g1 (library handles the conversion)
-                        SqlExpr (Value (Postgis 'Geometry a))
-st_transform_geography srid geography =
-  unsafeSqlFunction "ST_Transform" (casted, val srid)
-  where
-    casted :: SqlExpr (Value (Postgis 'Geometry a))
-    casted = unsafe_cast_pg_type geography
-
-st_transform_geometry :: SqlExpr (Value (Postgis 'Geometry a)) -> -- ^ g1 (library handles the conversion)
-                        SqlExpr (Value (Postgis 'Geography a))
-st_transform_geometry input = unsafe_cast_pg_type transformed
-  where
-    transformed :: SqlExpr (Value (Postgis 'Geometry a))
-    transformed =
-      unsafeSqlFunction "ST_Transform" (input, val wgs84)
-
--- postgis doesn't appear to care about casting between spaces,
--- the user probably wants to use st_transform instead.
-unsafe_cast_pg_type :: forall two one a . HasPgType two => SqlExpr (Value (Postgis one a)) -> SqlExpr (Value (Postgis two a))
-unsafe_cast_pg_type = unsafeSqlCastAs castAs
-  where
-    castAs = pgType $ Proxy @two
 
 st_unions ::
   SqlExpr (Value (Postgis 'Geometry a)) ->
