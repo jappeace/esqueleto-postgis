@@ -71,6 +71,10 @@ share
     geom (PostgisGeometry PointXY)
     label Text
 
+  GeoGrid
+    geo (Postgis 'Geography PointXY)
+    label Text
+
   Unit sql=unit
     geom       (PostgisGeometry PointXY)
     deriving Eq Show
@@ -218,10 +222,30 @@ postgisBindingsTests =
                 grid <- from $ table @Grid
                 pure $ st_union $ grid ^. GridGeom
             unValue <$> result @?= (Just $ Polygon $ makeLinearRing (PointXY {_xyX = 0.0, _xyY = 2.0}) (PointXY {_xyX = 2.0, _xyY = 2.0}) (PointXY {_xyX = 4.0, _xyY = 2.0}) (Seq.fromList [PointXY {_xyX = 4.0, _xyY = 0.0}, PointXY {_xyX = 2.0, _xyY = 0.0}, PointXY {_xyX = 0.0, _xyY = 0.0}])),
+          testCase ("union_in_PG_and then get out some Haskell") $ do
+            result <- runDB $ do
+              _ <-
+                insert $
+                  GeoGrid
+                    { geoGridGeo = Polygon $ makePolygon (PointXY 0 0) (PointXY 0 2) (PointXY 2 2) $ Seq.fromList [(PointXY 2 0)],
+                      geoGridLabel = "x"
+                    }
+              _ <-
+                insert $
+                  GeoGrid
+                    { geoGridGeo = Polygon $ makePolygon (PointXY 2 0) (PointXY 2 2) (PointXY 4 2) $ Seq.fromList [(PointXY 4 0)],
+                      geoGridLabel = "y"
+                    }
+
+              selectOne $ do
+                grid <- from $ table @GeoGrid
+                pure $ st_transform_geometry $ st_union $ st_transform_geography mercator $ grid ^. GeoGridGeo
+            -- as degrees it doesn't appear to be merging them.
+            unValue <$> result @?= (Just (Polygon (makeLinearRing (PointXY {_xyX = 1.9999999999999996, _xyY = 1.9999999999999996}) (PointXY {_xyX = 3.999999999999999, _xyY = 1.9999999999999996}) (PointXY {_xyX = 3.999999999999999, _xyY = 0.0}) (Seq.fromList [PointXY {_xyX = 1.9999999999999996, _xyY = 0.0},PointXY {_xyX = 0.0, _xyY = 0.0},PointXY {_xyX = 0.0, _xyY = 1.9999999999999996}])))),
           testCase ("see if we can unions in PG and then get out some Haskell") $ do
             result <- runDB $ do
               selectOne $
-                pure $ st_unions @'Geometry  (val (Polygon $ makePolygon (PointXY 0 0) (PointXY 0 2) (PointXY 2 2) $ Seq.fromList [(PointXY 2 0)])) $
+                pure $ st_unions (val (Polygon $ makePolygon (PointXY 0 0) (PointXY 0 2) (PointXY 2 2) $ Seq.fromList [(PointXY 2 0)])) $
                         val $ Polygon $ makePolygon (PointXY 2 0) (PointXY 2 2) (PointXY 4 2) $ Seq.fromList [(PointXY 4 0)]
             unValue <$> result @?= (Just $ Polygon $ makeLinearRing (PointXY {_xyX = 0.0, _xyY = 2.0}) (PointXY {_xyX = 2.0, _xyY = 2.0}) (PointXY {_xyX = 4.0, _xyY = 2.0}) (Seq.fromList [PointXY {_xyX = 4.0, _xyY = 0.0}, PointXY {_xyX = 2.0, _xyY = 0.0}, PointXY {_xyX = 0.0, _xyY = 0.0}])),
 
