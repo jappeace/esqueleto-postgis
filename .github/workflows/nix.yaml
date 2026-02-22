@@ -28,6 +28,5 @@ jobs:
         # If you chose API tokens for write access OR if you have a private cache
         # authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
         signingKey: '${{ secrets.CACHIX_SIGNING_KEY }}'
-    - run: nix build -Lv
-    - run: nix flake check -Lv
-    - run: nix develop -Lv -c echo OK
+    - run: nix-build -v ./nix/ci.nix 
+    - run: nix-shell -v --run "echo OK"
