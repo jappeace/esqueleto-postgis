@@ -13,8 +13,8 @@
 --   Earth spanning applications should use Geography,
 --   local applications should use 'Geometry' because it's more convenient.
 --   You don't have to use Geography if you're only interested in
---   topological functions such as 'st_intersect' and 'st_union',
---   these are indifferent to space distortations,
+--   topological functions such as 'st_intersects' and 'st_union',
+--   these are indifferent to space distortions,
 --   see <https://www.gdmc.nl/publications/2013/3D_Geo-DBMS_Topological_Operators.pdf>
 --   the related work section.
 --
