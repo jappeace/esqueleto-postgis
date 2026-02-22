@@ -12,6 +12,11 @@
 --   Make sure to use the correct 'SpatialType'.
 --   Earth spanning applications should use Geography,
 --   local applications should use 'Geometry' because it's more convenient.
+--   You don't have to use Geography if you're only interested in
+--   topological functions such as 'st_intersect' and 'st_union',
+--   these are indifferent to space distortations,
+--   see <https://www.gdmc.nl/publications/2013/3D_Geo-DBMS_Topological_Operators.pdf>
+--   the related work section.
 --
 --   if you can't use a function for example when you're using 'Geography'.
 --   there is the option to 'st_transform_geography'.
