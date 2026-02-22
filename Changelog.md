@@ -1,5 +1,8 @@
 # Change log for esqueleto-postgis project
 
+## Version 4.0.1 
+Add notes on topology, may save some people a lot of time.
+         
 ## Version 4.0.0 
 Hotfix!
 
