@@ -80,7 +80,7 @@ There are still many bindings missing!
 ### Tools
 Enter the nix shell.
 ```
-nix develop
+nix-shell
 ```
 You can checkout the makefile to see what's available:
 ```
