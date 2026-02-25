@@ -429,12 +429,18 @@ point x y = Point (PointXY {_xyX = x, _xyY = y})
 point_v :: HasPgType spatialType => Double -> Double -> SqlExpr (Value (Postgis spatialType PointXY))
 point_v = fmap val . point
 
-st_point :: SqlExpr (Value Double) -> SqlExpr (Value Double) -> SqlExpr (Value (Postgis spatialType PointXY))
-st_point a b = unsafeSqlFunction "ST_POINT" (a, b)
+st_point ::  forall spatialType . HasPgType spatialType => SqlExpr (Value Double) -> SqlExpr (Value Double) -> SqlExpr (Value (Postgis spatialType PointXY))
+st_point a b = unsafeSqlCastAs castAs $ unsafeSqlFunction "ST_POINT" (a, b)
+  where
+    castAs = pgType $ Proxy @spatialType
 
-st_point_xyz :: SqlExpr (Value Double) -> SqlExpr (Value Double) -> SqlExpr (Value Double) -> SqlExpr (Value (Postgis spatialType PointXYZ))
-st_point_xyz a b c = unsafeSqlFunction "ST_POINT" (a, b, c)
 
-st_point_xyzm :: SqlExpr (Value Double) -> SqlExpr (Value Double) -> SqlExpr (Value Double) -> SqlExpr (Value Double) -> SqlExpr (Value (Postgis spatialType PointXYZM))
-st_point_xyzm a b c m = unsafeSqlFunction "ST_POINT" (a, b, c, m)
+st_point_xyz ::  forall spatialType . HasPgType spatialType =>  SqlExpr (Value Double) -> SqlExpr (Value Double) -> SqlExpr (Value Double) -> SqlExpr (Value (Postgis spatialType PointXYZ))
+st_point_xyz a b c = unsafeSqlCastAs castAs $ unsafeSqlFunction "ST_POINT" (a, b, c)
+  where
+    castAs = pgType $ Proxy @spatialType
 
+st_point_xyzm :: forall spatialType . HasPgType spatialType =>  SqlExpr (Value Double) -> SqlExpr (Value Double) -> SqlExpr (Value Double) -> SqlExpr (Value Double) -> SqlExpr (Value (Postgis spatialType PointXYZM))
+st_point_xyzm a b c m = unsafeSqlCastAs castAs $ unsafeSqlFunction "ST_POINT" (a, b, c, m)
+  where
+    castAs = pgType $ Proxy @spatialType
