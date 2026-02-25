@@ -1,5 +1,10 @@
 # Change log for esqueleto-postgis project
 
+## Version 4.0.2 
++ fix bug where st_point and friends did not respect spatialType.
+  solved it by always casting them to whatever the user specified.
+  Added tests for this as well.
+
 ## Version 4.0.1 
 + Add notes on topology, may save some people a lot of time.
 + Remove flake, use npins

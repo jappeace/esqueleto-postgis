@@ -264,6 +264,20 @@ postgisBindingsTests =
                     (point_v (-118.24) 34.05) -- LA
                     (point_v (-74.00) 40.71) -- NYC
             unValue <$> result @?= (Just 3_944_735.82464902), -- correct! (in m)
+          testCase ("st_distance@geom can distance PG and then get out some Haskell, doing it wrong with geometry") $ do
+            result <- runDB $ do
+              selectOne $
+                pure $ st_distance @'Geometry
+                    (st_point (val (-118.24)) (val 34.05)) -- LA
+                    (st_point (val (-74.00)) (val 40.71)) -- NYC
+            unValue <$> result @?= (Just  44.73849796316367), -- not 44km, but geometry does that
+          testCase ("st_distance@geography can distance PG and then get out some Haskell, doing it wrong with geometry") $ do
+            result <- runDB $ do
+              selectOne $
+                pure $ st_distance @'Geography
+                    (st_point (val (-118.24)) (val 34.05)) -- LA
+                    (st_point (val (-74.00)) (val 40.71)) -- NYC
+            unValue <$> result @?= (Just 3_944_735.82464902), -- correct! (in m)
           testCase ("see if we can get just the units in the polygons") $ do
             result <- runDB $ do
               _ <-
