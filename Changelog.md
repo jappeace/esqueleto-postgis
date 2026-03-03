@@ -1,5 +1,8 @@
 # Change log for esqueleto-postgis project
 
+## Version 4.0.3 
++ add comments on x and y, z and m.
+
 ## Version 4.0.2 
 + fix bug where st_point and friends did not respect spatialType.
   solved it by always casting them to whatever the user specified.

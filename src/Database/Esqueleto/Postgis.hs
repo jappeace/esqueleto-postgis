@@ -423,24 +423,42 @@ st_intersects ::
   SqlExpr (Value Bool)
 st_intersects a b = unsafeSqlFunction "ST_Intersects" (a, b)
 
-point :: Double -> Double -> (Postgis spatialType PointXY)
+point ::
+  Double -> -- ^ x or longitude
+  Double -> -- ^ y or latitude
+  (Postgis spatialType PointXY)
 point x y = Point (PointXY {_xyX = x, _xyY = y})
 
-point_v :: HasPgType spatialType => Double -> Double -> SqlExpr (Value (Postgis spatialType PointXY))
+point_v :: HasPgType spatialType =>
+  Double -> -- ^ x or longitude
+  Double -> -- ^ y or latitude
+  SqlExpr (Value (Postgis spatialType PointXY))
 point_v = fmap val . point
 
-st_point ::  forall spatialType . HasPgType spatialType => SqlExpr (Value Double) -> SqlExpr (Value Double) -> SqlExpr (Value (Postgis spatialType PointXY))
+st_point ::  forall spatialType . HasPgType spatialType =>
+  SqlExpr (Value Double) -> -- ^ x or longitude
+  SqlExpr (Value Double) -> -- ^ y or latitude
+  SqlExpr (Value (Postgis spatialType PointXY))
 st_point a b = unsafeSqlCastAs castAs $ unsafeSqlFunction "ST_POINT" (a, b)
   where
     castAs = pgType $ Proxy @spatialType
 
 
-st_point_xyz ::  forall spatialType . HasPgType spatialType =>  SqlExpr (Value Double) -> SqlExpr (Value Double) -> SqlExpr (Value Double) -> SqlExpr (Value (Postgis spatialType PointXYZ))
+st_point_xyz ::  forall spatialType . HasPgType spatialType =>
+  SqlExpr (Value Double) -> -- ^ x or longitude
+  SqlExpr (Value Double) -> -- ^ y or latitude
+  SqlExpr (Value Double) -> -- ^ z elevation/altitude
+  SqlExpr (Value (Postgis spatialType PointXYZ))
 st_point_xyz a b c = unsafeSqlCastAs castAs $ unsafeSqlFunction "ST_POINT" (a, b, c)
   where
     castAs = pgType $ Proxy @spatialType
 
-st_point_xyzm :: forall spatialType . HasPgType spatialType =>  SqlExpr (Value Double) -> SqlExpr (Value Double) -> SqlExpr (Value Double) -> SqlExpr (Value Double) -> SqlExpr (Value (Postgis spatialType PointXYZM))
+st_point_xyzm :: forall spatialType . HasPgType spatialType =>
+  SqlExpr (Value Double) -> -- ^ x or longitude
+  SqlExpr (Value Double) -> -- ^ y or latitude
+  SqlExpr (Value Double) -> -- ^ z elevation/altitude
+  SqlExpr (Value Double) -> -- ^ m measure, user defined dimension
+  SqlExpr (Value (Postgis spatialType PointXYZM))
 st_point_xyzm a b c m = unsafeSqlCastAs castAs $ unsafeSqlFunction "ST_POINT" (a, b, c, m)
   where
     castAs = pgType $ Proxy @spatialType
