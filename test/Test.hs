@@ -357,7 +357,263 @@ postgisBindingsTests =
                 where_ $ st_dwithin (unit ^. UnitGeom) (st_point (val 2) (val 0)) (val 1)
                 pure unit
 
-            entityVal <$> result @?= []
+            entityVal <$> result @?= [],
+
+          -- st_within: interior point is within polygon
+          testCase "st_within finds point inside polygon" $ do
+            result <- runDB $ do
+              _ <- insert $ Unit { unitGeom = Polygon $ makePolygon (PointXY 0 0) (PointXY 0 2) (PointXY 2 2) $ Seq.fromList [PointXY 2 0] }
+              selectOne $ do
+                unit <- from $ table @Unit
+                where_ $ (val $ Point (PointXY 1 1)) `st_within` (unit ^. UnitGeom)
+                pure countRows
+            unValue <$> result @?= Just (1 :: Int),
+
+          -- st_touches: adjacent polygons touch at shared edge
+          testCase "st_touches detects shared edge" $ do
+            result <- runDB $ do
+              _ <- insert $ Unit { unitGeom = Polygon $ makePolygon (PointXY 0 0) (PointXY 0 2) (PointXY 2 2) $ Seq.fromList [PointXY 2 0] }
+              selectOne $ do
+                unit <- from $ table @Unit
+                where_ $ (val $ Polygon $ makePolygon (PointXY 2 0) (PointXY 2 2) (PointXY 4 2) $ Seq.fromList [PointXY 4 0]) `st_touches` (unit ^. UnitGeom)
+                pure countRows
+            unValue <$> result @?= Just (1 :: Int),
+
+          -- st_crosses: line crossing through polygon
+          testCase "st_crosses detects line crossing polygon" $ do
+            result <- runDB $ do
+              _ <- insert $ Unit { unitGeom = Polygon $ makePolygon (PointXY 0 0) (PointXY 0 2) (PointXY 2 2) $ Seq.fromList [PointXY 2 0] }
+              selectOne $ do
+                unit <- from $ table @Unit
+                where_ $ (val $ Line $ makeLineString (PointXY (-1) 1) (PointXY 3 1) $ Seq.fromList []) `st_crosses` (unit ^. UnitGeom)
+                pure countRows
+            unValue <$> result @?= Just (1 :: Int),
+
+          -- st_disjoint: exterior point is disjoint from polygon
+          testCase "st_disjoint finds disjoint geometries" $ do
+            result <- runDB $ do
+              _ <- insert $ Unit { unitGeom = Polygon $ makePolygon (PointXY 0 0) (PointXY 0 2) (PointXY 2 2) $ Seq.fromList [PointXY 2 0] }
+              selectOne $ do
+                unit <- from $ table @Unit
+                where_ $ (val $ Point (PointXY 9 9)) `st_disjoint` (unit ^. UnitGeom)
+                pure countRows
+            unValue <$> result @?= Just (1 :: Int),
+
+          -- st_equals: polygon equals itself
+          testCase "st_equals detects equal geometries" $ do
+            let poly = Polygon $ makePolygon (PointXY 0 0) (PointXY 0 2) (PointXY 2 2) $ Seq.fromList [PointXY 2 0]
+            result <- runDB $ do
+              _ <- insert $ Unit { unitGeom = poly }
+              selectOne $ do
+                unit <- from $ table @Unit
+                where_ $ (unit ^. UnitGeom) `st_equals` (val poly)
+                pure countRows
+            unValue <$> result @?= Just (1 :: Int),
+
+          -- st_covers: polygon covers interior point
+          testCase "st_covers polygon covers interior point" $ do
+            result <- runDB $ do
+              _ <- insert $ Unit { unitGeom = Polygon $ makePolygon (PointXY 0 0) (PointXY 0 2) (PointXY 2 2) $ Seq.fromList [PointXY 2 0] }
+              selectOne $ do
+                unit <- from $ table @Unit
+                where_ $ (unit ^. UnitGeom) `st_covers` (val $ Point (PointXY 1 1))
+                pure countRows
+            unValue <$> result @?= Just (1 :: Int),
+
+          -- st_coveredby: interior point is covered by polygon
+          testCase "st_coveredby point covered by polygon" $ do
+            result <- runDB $ do
+              _ <- insert $ Unit { unitGeom = Polygon $ makePolygon (PointXY 0 0) (PointXY 0 2) (PointXY 2 2) $ Seq.fromList [PointXY 2 0] }
+              selectOne $ do
+                unit <- from $ table @Unit
+                where_ $ (val $ Point (PointXY 1 1)) `st_coveredby` (unit ^. UnitGeom)
+                pure countRows
+            unValue <$> result @?= Just (1 :: Int),
+
+          -- st_overlaps: overlapping polygons
+          testCase "st_overlaps detects overlapping polygons" $ do
+            result <- runDB $ do
+              _ <- insert $ Unit { unitGeom = Polygon $ makePolygon (PointXY 0 0) (PointXY 0 2) (PointXY 2 2) $ Seq.fromList [PointXY 2 0] }
+              selectOne $ do
+                unit <- from $ table @Unit
+                where_ $ (val $ Polygon $ makePolygon (PointXY 1 1) (PointXY 1 3) (PointXY 3 3) $ Seq.fromList [PointXY 3 1]) `st_overlaps` (unit ^. UnitGeom)
+                pure countRows
+            unValue <$> result @?= Just (1 :: Int),
+
+          -- st_containsproperly: polygon properly contains interior point (not on boundary)
+          testCase "st_containsproperly finds interior point" $ do
+            result <- runDB $ do
+              _ <- insert $ Unit { unitGeom = Polygon $ makePolygon (PointXY 0 0) (PointXY 0 2) (PointXY 2 2) $ Seq.fromList [PointXY 2 0] }
+              selectOne $ do
+                unit <- from $ table @Unit
+                where_ $ (unit ^. UnitGeom) `st_containsproperly` (val $ Point (PointXY 1 1))
+                pure countRows
+            unValue <$> result @?= Just (1 :: Int),
+
+          -- st_area: area of 2x2 square = 4.0
+          testCase "st_area computes polygon area" $ do
+            result <- runDB $ do
+              selectOne $ pure $ st_area (val @(Postgis 'Geometry PointXY) $ Polygon $ makePolygon (PointXY 0 0) (PointXY 0 2) (PointXY 2 2) $ Seq.fromList [PointXY 2 0])
+            unValue <$> result @?= Just (4.0 :: Double),
+
+          -- st_perimeter: perimeter of 2x2 square = 8.0
+          testCase "st_perimeter computes polygon perimeter" $ do
+            result <- runDB $ do
+              selectOne $ pure $ st_perimeter (val @(Postgis 'Geometry PointXY) $ Polygon $ makePolygon (PointXY 0 0) (PointXY 0 2) (PointXY 2 2) $ Seq.fromList [PointXY 2 0])
+            unValue <$> result @?= Just (8.0 :: Double),
+
+          -- st_length: length of line from (0,0) to (3,4) = 5.0
+          testCase "st_length computes line length" $ do
+            result <- runDB $ do
+              selectOne $ pure $ st_length (val @(Postgis 'Geometry PointXY) $ Line $ makeLineString (PointXY 0 0) (PointXY 3 4) $ Seq.fromList [])
+            unValue <$> result @?= Just (5.0 :: Double),
+
+          -- st_azimuth: azimuth from origin to (1,0) = pi/2 (east)
+          testCase "st_azimuth computes angle" $ do
+            result <- runDB $ do
+              selectOne $ pure $ st_azimuth
+                (val @(Postgis 'Geometry PointXY) $ Point (PointXY 0 0))
+                (val $ Point (PointXY 1 0))
+            -- azimuth to east (positive X) = pi/2
+            case unValue <$> result of
+              Just v -> assertBool "azimuth ~ pi/2" (abs (v - pi / 2) < 1e-10)
+              Nothing -> assertFailure "expected a result for st_azimuth",
+
+          -- st_maxdistance: max distance between two squares
+          testCase "st_maxdistance computes maximum distance" $ do
+            result <- runDB $ do
+              selectOne $ pure $ st_maxdistance
+                (val @(Postgis 'Geometry PointXY) $ Polygon $ makePolygon (PointXY 0 0) (PointXY 0 1) (PointXY 1 1) $ Seq.fromList [PointXY 1 0])
+                (val $ Point (PointXY 4 0))
+            -- max distance is from (0,1) to (4,0) = sqrt(16+1) = sqrt 17
+            case unValue <$> result of
+              Just v -> assertBool "maxdistance ~ sqrt 17" (abs (v - sqrt 17) < 1e-10)
+              Nothing -> assertFailure "expected a result for st_maxdistance",
+
+          -- st_x: X coordinate of point
+          testCase "st_x extracts X coordinate" $ do
+            result <- runDB $ do
+              selectOne $ pure $ st_x (val @(Postgis 'Geometry PointXY) $ Point (PointXY 3.5 7.2))
+            unValue <$> result @?= Just (3.5 :: Double),
+
+          -- st_y: Y coordinate of point
+          testCase "st_y extracts Y coordinate" $ do
+            result <- runDB $ do
+              selectOne $ pure $ st_y (val @(Postgis 'Geometry PointXY) $ Point (PointXY 3.5 7.2))
+            unValue <$> result @?= Just (7.2 :: Double),
+
+          -- st_npoints: 2x2 square has 5 points (closed ring)
+          testCase "st_npoints counts vertices" $ do
+            result <- runDB $ do
+              selectOne $ pure $ st_npoints (val @(Postgis 'Geometry PointXY) $ Polygon $ makePolygon (PointXY 0 0) (PointXY 0 2) (PointXY 2 2) $ Seq.fromList [PointXY 2 0])
+            unValue <$> result @?= Just (6 :: Int),
+
+          -- st_numgeometries: single polygon returns 1
+          testCase "st_numgeometries counts sub-geometries" $ do
+            result <- runDB $ do
+              selectOne $ pure $ st_numgeometries (val @(Postgis 'Geometry PointXY) $ Polygon $ makePolygon (PointXY 0 0) (PointXY 0 2) (PointXY 2 2) $ Seq.fromList [PointXY 2 0])
+            unValue <$> result @?= Just (1 :: Int),
+
+          -- st_dimension: polygon has dimension 2
+          testCase "st_dimension returns topological dimension" $ do
+            result <- runDB $ do
+              selectOne $ pure $ st_dimension (val @(Postgis 'Geometry PointXY) $ Polygon $ makePolygon (PointXY 0 0) (PointXY 0 2) (PointXY 2 2) $ Seq.fromList [PointXY 2 0])
+            unValue <$> result @?= Just (2 :: Int),
+
+          -- st_issimple: simple line is simple
+          testCase "st_issimple detects simple geometry" $ do
+            result <- runDB $ do
+              _ <- insert $ Unit { unitGeom = Line $ makeLineString (PointXY 0 0) (PointXY 3 4) $ Seq.fromList [] }
+              selectOne $ do
+                unit <- from $ table @Unit
+                where_ $ st_issimple (unit ^. UnitGeom)
+                pure countRows
+            unValue <$> result @?= Just (1 :: Int),
+
+          -- st_isclosed: closed linestring (start=end)
+          testCase "st_isclosed detects closed linestring" $ do
+            result <- runDB $ do
+              _ <- insert $ Unit { unitGeom = Line $ makeLineString (PointXY 0 0) (PointXY 1 1) $ Seq.fromList [PointXY 2 0, PointXY 0 0] }
+              selectOne $ do
+                unit <- from $ table @Unit
+                where_ $ st_isclosed (unit ^. UnitGeom)
+                pure countRows
+            unValue <$> result @?= Just (1 :: Int),
+
+          -- st_isvalid: valid polygon is valid
+          testCase "st_isvalid detects valid geometry" $ do
+            result <- runDB $ do
+              _ <- insert $ Unit { unitGeom = Polygon $ makePolygon (PointXY 0 0) (PointXY 0 2) (PointXY 2 2) $ Seq.fromList [PointXY 2 0] }
+              selectOne $ do
+                unit <- from $ table @Unit
+                where_ $ st_isvalid (unit ^. UnitGeom)
+                pure countRows
+            unValue <$> result @?= Just (1 :: Int),
+
+          -- st_srid: default SRID is 0
+          testCase "st_srid returns spatial reference id" $ do
+            result <- runDB $ do
+              selectOne $ pure $ st_srid (val @(Postgis 'Geometry PointXY) $ Point (PointXY 1 1))
+            unValue <$> result @?= Just (0 :: Int),
+
+          -- st_centroid: centroid of 2x2 square at origin is (1,1)
+          testCase "st_centroid computes geometric center" $ do
+            result <- runDB $ do
+              _ <- insert $ Unit { unitGeom = Polygon $ makePolygon (PointXY 0 0) (PointXY 0 2) (PointXY 2 2) $ Seq.fromList [PointXY 2 0] }
+              selectOne $ do
+                unit <- from $ table @Unit
+                where_ $ (val $ Point (PointXY 1 1)) `st_equals` st_centroid (unit ^. UnitGeom)
+                pure countRows
+            unValue <$> result @?= Just (1 :: Int),
+
+          -- st_buffer: buffer of a point by 1 has area ~ pi
+          testCase "st_buffer expands geometry by distance" $ do
+            result <- runDB $ do
+              selectOne $ pure $ st_area $ st_buffer (val @(Postgis 'Geometry PointXY) $ Point (PointXY 0 0)) (val 1)
+            case unValue <$> result of
+              Just v -> assertBool "buffer area ~ pi" (abs (v - pi) < 0.1)
+              Nothing -> assertFailure "expected a result for st_buffer",
+
+          -- st_convexhull: convex hull of L-shaped points is a triangle
+          testCase "st_convexhull computes convex hull" $ do
+            result <- runDB $ do
+              selectOne $ pure $ st_area $ st_convexhull (val @(Postgis 'Geometry PointXY) $ Line $ makeLineString (PointXY 0 0) (PointXY 4 0) $ Seq.fromList [PointXY 0 3])
+            -- triangle with base 4, height 3, area = 6
+            unValue <$> result @?= Just (6.0 :: Double),
+
+          -- st_envelope: bounding box of 2x2 square is itself
+          testCase "st_envelope computes bounding box" $ do
+            result <- runDB $ do
+              selectOne $ pure $ st_area $ st_envelope (val @(Postgis 'Geometry PointXY) $ Polygon $ makePolygon (PointXY 0 0) (PointXY 0 2) (PointXY 2 2) $ Seq.fromList [PointXY 2 0])
+            unValue <$> result @?= Just (4.0 :: Double),
+
+          -- st_pointonsurface: result is contained by the polygon
+          testCase "st_pointonsurface returns point on surface" $ do
+            let poly = Polygon $ makePolygon (PointXY 0 0) (PointXY 0 2) (PointXY 2 2) $ Seq.fromList [PointXY 2 0]
+            result <- runDB $ do
+              _ <- insert $ Unit { unitGeom = poly }
+              selectOne $ do
+                unit <- from $ table @Unit
+                where_ $ (unit ^. UnitGeom) `st_contains` st_pointonsurface (unit ^. UnitGeom)
+                pure countRows
+            unValue <$> result @?= Just (1 :: Int),
+
+          -- st_intersection: intersection of overlapping 2x2 squares = 1x1 area
+          testCase "st_intersection computes shared area" $ do
+            result <- runDB $ do
+              selectOne $ pure $ st_area $ st_intersection
+                (val @(Postgis 'Geometry PointXY) $ Polygon $ makePolygon (PointXY 0 0) (PointXY 0 2) (PointXY 2 2) $ Seq.fromList [PointXY 2 0])
+                (val $ Polygon $ makePolygon (PointXY 1 1) (PointXY 1 3) (PointXY 3 3) $ Seq.fromList [PointXY 3 1])
+            unValue <$> result @?= Just (1.0 :: Double),
+
+          -- st_difference: A minus overlap
+          testCase "st_difference computes geometric difference" $ do
+            result <- runDB $ do
+              selectOne $ pure $ st_area $ st_difference
+                (val @(Postgis 'Geometry PointXY) $ Polygon $ makePolygon (PointXY 0 0) (PointXY 0 2) (PointXY 2 2) $ Seq.fromList [PointXY 2 0])
+                (val $ Polygon $ makePolygon (PointXY 1 1) (PointXY 1 3) (PointXY 3 3) $ Seq.fromList [PointXY 3 1])
+            -- 2x2 square area 4.0, minus 1x1 overlap = 3.0
+            unValue <$> result @?= Just (3.0 :: Double)
         ]
     ]
 

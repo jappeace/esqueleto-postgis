@@ -26,38 +26,73 @@ module Database.Esqueleto.Postgis
     SpatialType(..),
     getPoints,
 
-    -- * functions
+    -- * Spatial relationship functions (Bool)
     st_contains,
     st_intersects,
+    st_within,
+    st_touches,
+    st_crosses,
+    st_disjoint,
+    st_equals,
+    st_covers,
+    st_coveredby,
+    st_overlaps,
+    st_containsproperly,
+
+    -- * Measurement functions (Double)
+    st_distance,
+    st_dwithin,
+    st_area,
+    st_perimeter,
+    st_length,
+    st_azimuth,
+    st_maxdistance,
+
+    -- * Geometry accessors
+    st_x,
+    st_y,
+    st_npoints,
+    st_numgeometries,
+    st_dimension,
+    st_issimple,
+    st_isclosed,
+    st_isvalid,
+    st_srid,
+
+    -- * Geometry processing
     st_union,
     st_unions,
-    st_dwithin,
-    st_distance         ,
+    st_centroid,
+    st_buffer,
+    st_convexhull,
+    st_envelope,
+    st_pointonsurface,
+    st_intersection,
+    st_difference,
 
-    -- * points
+    -- * Points
     point,
     point_v,
     st_point,
     st_point_xyz,
     st_point_xyzm,
 
-    -- * transform
+    -- * Transform
     st_transform_geography,
     st_transform_geometry,
-    -- ** srid
+    -- ** SRID
     SRID,
     wgs84,
-    mercator ,
+    mercator,
     britishNationalGrid,
-    SridUnit    (..),
+    SridUnit(..),
 
-
-    -- * other
+    -- * Other
     makePolygon,
     PostgisGeometry,
     HasPgType,
 
-    -- * re-exports
+    -- * Re-exports
     PointXY(..),
     PointXYZ(..),
     PointXYZM(..),
@@ -422,6 +457,261 @@ st_intersects ::
   SqlExpr (Value (Postgis spatialType a)) -> -- ^ geomB or geogB
   SqlExpr (Value Bool)
 st_intersects a b = unsafeSqlFunction "ST_Intersects" (a, b)
+
+-- | Returns TRUE if geometry A is within geometry B.
+--   Tests if every point of A lies inside (interior or boundary of) B.
+--   The inverse of 'st_contains': @st_within a b == st_contains b a@.
+--   https://postgis.net/docs/ST_Within.html
+st_within ::
+  SqlExpr (Value (Postgis 'Geometry a)) ->
+  SqlExpr (Value (Postgis 'Geometry a)) ->
+  SqlExpr (Value Bool)
+st_within a b = unsafeSqlFunction "ST_Within" (a, b)
+
+-- | Returns TRUE if geometry A touches geometry B.
+--   They have at least one boundary point in common, but no interior points.
+--   https://postgis.net/docs/ST_Touches.html
+st_touches ::
+  SqlExpr (Value (Postgis 'Geometry a)) ->
+  SqlExpr (Value (Postgis 'Geometry a)) ->
+  SqlExpr (Value Bool)
+st_touches a b = unsafeSqlFunction "ST_Touches" (a, b)
+
+-- | Returns TRUE if geometry A crosses geometry B.
+--   They have some but not all interior points in common.
+--   https://postgis.net/docs/ST_Crosses.html
+st_crosses ::
+  SqlExpr (Value (Postgis 'Geometry a)) ->
+  SqlExpr (Value (Postgis 'Geometry a)) ->
+  SqlExpr (Value Bool)
+st_crosses a b = unsafeSqlFunction "ST_Crosses" (a, b)
+
+-- | Returns TRUE if geometry A is disjoint from geometry B.
+--   They do not share any space together, the inverse of 'st_intersects'.
+--   https://postgis.net/docs/ST_Disjoint.html
+st_disjoint ::
+  SqlExpr (Value (Postgis 'Geometry a)) ->
+  SqlExpr (Value (Postgis 'Geometry a)) ->
+  SqlExpr (Value Bool)
+st_disjoint a b = unsafeSqlFunction "ST_Disjoint" (a, b)
+
+-- | Returns TRUE if geometry A is spatially equal to geometry B.
+--   The geometries represent the same region of space regardless of vertex order.
+--   https://postgis.net/docs/ST_Equals.html
+st_equals ::
+  SqlExpr (Value (Postgis 'Geometry a)) ->
+  SqlExpr (Value (Postgis 'Geometry a)) ->
+  SqlExpr (Value Bool)
+st_equals a b = unsafeSqlFunction "ST_Equals" (a, b)
+
+-- | Returns TRUE if geometry/geography A covers geometry/geography B.
+--   No point in B is outside A. Similar to 'st_contains' but does not distinguish boundary and interior.
+--   https://postgis.net/docs/ST_Covers.html
+st_covers ::
+  SqlExpr (Value (Postgis spatialType a)) ->
+  SqlExpr (Value (Postgis spatialType a)) ->
+  SqlExpr (Value Bool)
+st_covers a b = unsafeSqlFunction "ST_Covers" (a, b)
+
+-- | Returns TRUE if geometry/geography A is covered by geometry/geography B.
+--   No point in A is outside B. The inverse of 'st_covers'.
+--   https://postgis.net/docs/ST_CoveredBy.html
+st_coveredby ::
+  SqlExpr (Value (Postgis spatialType a)) ->
+  SqlExpr (Value (Postgis spatialType a)) ->
+  SqlExpr (Value Bool)
+st_coveredby a b = unsafeSqlFunction "ST_CoveredBy" (a, b)
+
+-- | Returns TRUE if geometry A overlaps geometry B.
+--   They share some space but neither contains the other entirely.
+--   https://postgis.net/docs/ST_Overlaps.html
+st_overlaps ::
+  SqlExpr (Value (Postgis 'Geometry a)) ->
+  SqlExpr (Value (Postgis 'Geometry a)) ->
+  SqlExpr (Value Bool)
+st_overlaps a b = unsafeSqlFunction "ST_Overlaps" (a, b)
+
+-- | Returns TRUE if geometry A contains geometry B properly.
+--   B must lie entirely inside the interior of A (not touching the boundary).
+--   https://postgis.net/docs/ST_ContainsProperly.html
+st_containsproperly ::
+  SqlExpr (Value (Postgis 'Geometry a)) ->
+  SqlExpr (Value (Postgis 'Geometry a)) ->
+  SqlExpr (Value Bool)
+st_containsproperly a b = unsafeSqlFunction "ST_ContainsProperly" (a, b)
+
+-- | Returns the area of a geometry or geography.
+--   For geometry, area is in SRID units squared. For geography, area is in square meters.
+--   https://postgis.net/docs/ST_Area.html
+st_area ::
+  SqlExpr (Value (Postgis spatialType a)) ->
+  SqlExpr (Value Double)
+st_area a = unsafeSqlFunction "ST_Area" a
+
+-- | Returns the perimeter of a geometry or geography.
+--   For geometry, in SRID units. For geography, in meters.
+--   https://postgis.net/docs/ST_Perimeter.html
+st_perimeter ::
+  SqlExpr (Value (Postgis spatialType a)) ->
+  SqlExpr (Value Double)
+st_perimeter a = unsafeSqlFunction "ST_Perimeter" a
+
+-- | Returns the 2D length of a linear geometry or geography.
+--   For geometry, in SRID units. For geography, in meters.
+--   https://postgis.net/docs/ST_Length.html
+st_length ::
+  SqlExpr (Value (Postgis spatialType a)) ->
+  SqlExpr (Value Double)
+st_length a = unsafeSqlFunction "ST_Length" a
+
+-- | Returns the azimuth in radians of the segment from point A to point B.
+--   The angle is measured clockwise from north (positive Y axis).
+--   https://postgis.net/docs/ST_Azimuth.html
+st_azimuth ::
+  SqlExpr (Value (Postgis 'Geometry a)) ->
+  SqlExpr (Value (Postgis 'Geometry a)) ->
+  SqlExpr (Value Double)
+st_azimuth a b = unsafeSqlFunction "ST_Azimuth" (a, b)
+
+-- | Returns the maximum distance between two geometries.
+--   The distance of the furthest pair of points.
+--   https://postgis.net/docs/ST_MaxDistance.html
+st_maxdistance ::
+  SqlExpr (Value (Postgis 'Geometry a)) ->
+  SqlExpr (Value (Postgis 'Geometry a)) ->
+  SqlExpr (Value Double)
+st_maxdistance a b = unsafeSqlFunction "ST_MaxDistance" (a, b)
+
+-- | Returns the X coordinate of a point geometry.
+--   Only works on points; other geometry types will error.
+--   https://postgis.net/docs/ST_X.html
+st_x ::
+  SqlExpr (Value (Postgis 'Geometry a)) ->
+  SqlExpr (Value Double)
+st_x a = unsafeSqlFunction "ST_X" a
+
+-- | Returns the Y coordinate of a point geometry.
+--   Only works on points; other geometry types will error.
+--   https://postgis.net/docs/ST_Y.html
+st_y ::
+  SqlExpr (Value (Postgis 'Geometry a)) ->
+  SqlExpr (Value Double)
+st_y a = unsafeSqlFunction "ST_Y" a
+
+-- | Returns the number of points (vertices) in a geometry.
+--   Works on any geometry type.
+--   https://postgis.net/docs/ST_NPoints.html
+st_npoints ::
+  SqlExpr (Value (Postgis 'Geometry a)) ->
+  SqlExpr (Value Int)
+st_npoints a = unsafeSqlFunction "ST_NPoints" a
+
+-- | Returns the number of sub-geometries in a geometry collection or multi-type.
+--   Returns 1 for single geometries.
+--   https://postgis.net/docs/ST_NumGeometries.html
+st_numgeometries ::
+  SqlExpr (Value (Postgis 'Geometry a)) ->
+  SqlExpr (Value Int)
+st_numgeometries a = unsafeSqlFunction "ST_NumGeometries" a
+
+-- | Returns the topological dimension of a geometry.
+--   0 for points, 1 for lines, 2 for polygons.
+--   https://postgis.net/docs/ST_Dimension.html
+st_dimension ::
+  SqlExpr (Value (Postgis 'Geometry a)) ->
+  SqlExpr (Value Int)
+st_dimension a = unsafeSqlFunction "ST_Dimension" a
+
+-- | Returns TRUE if the geometry has no self-intersections.
+--   Points and properly-formed polygons are always simple.
+--   https://postgis.net/docs/ST_IsSimple.html
+st_issimple ::
+  SqlExpr (Value (Postgis 'Geometry a)) ->
+  SqlExpr (Value Bool)
+st_issimple a = unsafeSqlFunction "ST_IsSimple" a
+
+-- | Returns TRUE if the linestring's start and end points are coincident.
+--   For polyhedral surfaces, reports if the surface is areal (open) or volumetric (closed).
+--   https://postgis.net/docs/ST_IsClosed.html
+st_isclosed ::
+  SqlExpr (Value (Postgis 'Geometry a)) ->
+  SqlExpr (Value Bool)
+st_isclosed a = unsafeSqlFunction "ST_IsClosed" a
+
+-- | Returns TRUE if the geometry is well-formed and valid per the OGC rules.
+--   Points and lines are always valid; polygons need correct ring structure.
+--   https://postgis.net/docs/ST_IsValid.html
+st_isvalid ::
+  SqlExpr (Value (Postgis 'Geometry a)) ->
+  SqlExpr (Value Bool)
+st_isvalid a = unsafeSqlFunction "ST_IsValid" a
+
+-- | Returns the spatial reference identifier (SRID) of the geometry.
+--   0 means no SRID is set.
+--   https://postgis.net/docs/ST_SRID.html
+st_srid ::
+  SqlExpr (Value (Postgis 'Geometry a)) ->
+  SqlExpr (Value Int)
+st_srid a = unsafeSqlFunction "ST_SRID" a
+
+-- | Returns the geometric center (centroid) of a geometry.
+--   For polygons this is the center of mass of the surface.
+--   https://postgis.net/docs/ST_Centroid.html
+st_centroid ::
+  SqlExpr (Value (Postgis 'Geometry a)) ->
+  SqlExpr (Value (Postgis 'Geometry a))
+st_centroid a = unsafeSqlFunction "ST_Centroid" a
+
+-- | Returns a geometry that is the buffer of the input geometry at a given distance.
+--   The buffer is a polygon expanded (or shrunk if negative) from the input by the distance.
+--   https://postgis.net/docs/ST_Buffer.html
+st_buffer ::
+  SqlExpr (Value (Postgis 'Geometry a)) ->
+  SqlExpr (Value Double) ->
+  SqlExpr (Value (Postgis 'Geometry a))
+st_buffer a d = unsafeSqlFunction "ST_Buffer" (a, d)
+
+-- | Returns the convex hull of a geometry.
+--   The smallest convex polygon that contains the input geometry.
+--   https://postgis.net/docs/ST_ConvexHull.html
+st_convexhull ::
+  SqlExpr (Value (Postgis 'Geometry a)) ->
+  SqlExpr (Value (Postgis 'Geometry a))
+st_convexhull a = unsafeSqlFunction "ST_ConvexHull" a
+
+-- | Returns the bounding box of a geometry as a geometry (polygon or point).
+--   A minimal axis-aligned rectangle that fully contains the input.
+--   https://postgis.net/docs/ST_Envelope.html
+st_envelope ::
+  SqlExpr (Value (Postgis 'Geometry a)) ->
+  SqlExpr (Value (Postgis 'Geometry a))
+st_envelope a = unsafeSqlFunction "ST_Envelope" a
+
+-- | Returns a point guaranteed to lie on the surface of the geometry.
+--   Unlike 'st_centroid', the result is always on or inside the geometry.
+--   https://postgis.net/docs/ST_PointOnSurface.html
+st_pointonsurface ::
+  SqlExpr (Value (Postgis 'Geometry a)) ->
+  SqlExpr (Value (Postgis 'Geometry a))
+st_pointonsurface a = unsafeSqlFunction "ST_PointOnSurface" a
+
+-- | Returns the shared portion of two geometries (their intersection).
+--   The result geometry contains only the area common to both inputs.
+--   https://postgis.net/docs/ST_Intersection.html
+st_intersection ::
+  SqlExpr (Value (Postgis 'Geometry a)) ->
+  SqlExpr (Value (Postgis 'Geometry a)) ->
+  SqlExpr (Value (Postgis 'Geometry a))
+st_intersection a b = unsafeSqlFunction "ST_Intersection" (a, b)
+
+-- | Returns the part of geometry A that does not intersect geometry B.
+--   Computes the geometric difference: A minus the shared area of A and B.
+--   https://postgis.net/docs/ST_Difference.html
+st_difference ::
+  SqlExpr (Value (Postgis 'Geometry a)) ->
+  SqlExpr (Value (Postgis 'Geometry a)) ->
+  SqlExpr (Value (Postgis 'Geometry a))
+st_difference a b = unsafeSqlFunction "ST_Difference" (a, b)
 
 point ::
   Double -> -- ^ x or longitude
