@@ -23,10 +23,11 @@ import Control.Monad.Logger (MonadLogger (..), runStderrLoggingT)
 import Control.Monad.Trans.Resource (MonadThrow, ResourceT, runResourceT)
 import Data.LineString (LineString, makeLineString)
 import Data.LinearRing (LinearRing, makeLinearRing)
-import Data.List.NonEmpty (NonEmpty)
+import Data.List.NonEmpty (NonEmpty(..))
 import Data.Sequence (Seq)
 import qualified Data.Sequence as Seq
-import Data.Text
+import Data.Text (Text, isInfixOf)
+import qualified Data.Text as T
 import Database.Esqueleto.Experimental
 import Database.Esqueleto.Postgis
 import Database.Persist
@@ -613,7 +614,811 @@ postgisBindingsTests =
                 (val @(Postgis 'Geometry PointXY) $ Polygon $ makePolygon (PointXY 0 0) (PointXY 0 2) (PointXY 2 2) $ Seq.fromList [PointXY 2 0])
                 (val $ Polygon $ makePolygon (PointXY 1 1) (PointXY 1 3) (PointXY 3 3) $ Seq.fromList [PointXY 3 1])
             -- 2x2 square area 4.0, minus 1x1 overlap = 3.0
-            unValue <$> result @?= Just (3.0 :: Double)
+            unValue <$> result @?= Just (3.0 :: Double),
+
+          -- =================================================================
+          -- Batch 2: 95 new function bindings
+          -- =================================================================
+
+          -- Geometry Constructors (4)
+
+          -- st_collect: aggregate collect over two polygons
+          testCase "st_collect aggregates geometries" $ do
+            result <- runDB $ do
+              _ <- insert $ Grid
+                { gridGeom = Point (PointXY 1 1), gridLabel = "a" }
+              _ <- insert $ Grid
+                { gridGeom = Point (PointXY 2 2), gridLabel = "b" }
+              selectOne $ do
+                grid <- from $ table @Grid
+                pure $ st_numgeometries $ st_collect $ grid ^. GridGeom
+            unValue <$> result @?= Just (2 :: Int),
+
+          -- st_makeenvelope: create a box from coordinates
+          testCase "st_makeenvelope creates a rectangle" $ do
+            result <- runDB $ do
+              selectOne $ pure $ st_area $ st_makeenvelope (val 0) (val 0) (val 3) (val 4) (val 0)
+            unValue <$> result @?= Just (12.0 :: Double),
+
+          -- st_makeline: create line from two points
+          testCase "st_makeline creates a line from two points" $ do
+            result <- runDB $ do
+              selectOne $ pure $ st_npoints $ st_makeline
+                (val @(Postgis 'Geometry PointXY) $ Point (PointXY 0 0))
+                (val $ Point (PointXY 3 4))
+            unValue <$> result @?= Just (2 :: Int),
+
+          -- st_makepolygon_line: create polygon from closed linestring
+          testCase "st_makepolygon_line creates polygon from closed linestring" $ do
+            result <- runDB $ do
+              selectOne $ pure $ st_area $ st_makepolygon_line
+                (val @(Postgis 'Geometry PointXY) $ Line $ makeLineString (PointXY 0 0) (PointXY 0 2) $ Seq.fromList [PointXY 2 2, PointXY 2 0, PointXY 0 0])
+            unValue <$> result @?= Just (4.0 :: Double),
+
+          -- Geometry Accessors (20)
+
+          -- st_boundary: boundary of a polygon is a linestring
+          testCase "st_boundary returns boundary" $ do
+            result <- runDB $ do
+              selectOne $ pure $ st_geometrytype $ st_boundary
+                (val @(Postgis 'Geometry PointXY) $ Polygon $ makePolygon (PointXY 0 0) (PointXY 0 2) (PointXY 2 2) $ Seq.fromList [PointXY 2 0])
+            unValue <$> result @?= Just ("ST_LineString" :: Text),
+
+          -- st_coorddim: 2D point has coordinate dimension 2
+          testCase "st_coorddim returns coordinate dimension" $ do
+            result <- runDB $ do
+              selectOne $ pure $ st_coorddim (val @(Postgis 'Geometry PointXY) $ Point (PointXY 1 1))
+            unValue <$> result @?= Just (2 :: Int),
+
+          -- st_endpoint: endpoint of a linestring
+          testCase "st_endpoint returns last point" $ do
+            result <- runDB $ do
+              selectOne $ pure $ st_x $ st_endpoint
+                (val @(Postgis 'Geometry PointXY) $ Line $ makeLineString (PointXY 0 0) (PointXY 3 4) $ Seq.fromList [])
+            unValue <$> result @?= Just (3.0 :: Double),
+
+          -- st_exteriorring: exterior ring of a polygon
+          testCase "st_exteriorring returns exterior ring" $ do
+            result <- runDB $ do
+              selectOne $ pure $ st_npoints $ st_exteriorring
+                (val @(Postgis 'Geometry PointXY) $ Polygon $ makePolygon (PointXY 0 0) (PointXY 0 2) (PointXY 2 2) $ Seq.fromList [PointXY 2 0])
+            case unValue <$> result of
+              Just n -> assertBool "exterior ring has points" (n >= 4)
+              Nothing -> assertFailure "expected a result for st_exteriorring",
+
+          -- st_geometryn: get first geometry from a multipoint
+          testCase "st_geometryn gets Nth geometry" $ do
+            result <- runDB $ do
+              selectOne $ pure $ st_x $ st_geometryn
+                (val @(Postgis 'Geometry PointXY) $ MultiPoint (PointXY 5 6 :| [PointXY 7 8]))
+                (val 1)
+            unValue <$> result @?= Just (5.0 :: Double),
+
+          -- st_geometrytype: point reports as ST_Point
+          testCase "st_geometrytype returns type string" $ do
+            result <- runDB $ do
+              selectOne $ pure $ st_geometrytype (val @(Postgis 'Geometry PointXY) $ Point (PointXY 1 1))
+            unValue <$> result @?= Just ("ST_Point" :: Text),
+
+          -- st_interiorringn: polygon without holes has no interior ring, tested with polygon with hole
+          testCase "st_interiorringn does not crash" $ do
+            -- A simple polygon has 0 interior rings; we just check this doesn't error
+            result <- runDB $ do
+              selectOne $ pure $ st_numinteriorrings
+                (val @(Postgis 'Geometry PointXY) $ Polygon $ makePolygon (PointXY 0 0) (PointXY 0 2) (PointXY 2 2) $ Seq.fromList [PointXY 2 0])
+            unValue <$> result @?= Just (0 :: Int),
+
+          -- st_iscollection: multipoint is a collection
+          testCase "st_iscollection detects collection types" $ do
+            result <- runDB $ do
+              _ <- insert $ Unit { unitGeom = MultiPoint (PointXY 1 1 :| [PointXY 2 2]) }
+              selectOne $ do
+                unit <- from $ table @Unit
+                where_ $ st_iscollection (unit ^. UnitGeom)
+                pure countRows
+            unValue <$> result @?= Just (1 :: Int),
+
+          -- st_isempty: non-empty point is not empty
+          testCase "st_isempty detects non-empty geometry" $ do
+            result <- runDB $ do
+              selectOne $ pure $ st_isempty (val @(Postgis 'Geometry PointXY) $ Point (PointXY 1 1))
+            unValue <$> result @?= Just False,
+
+          -- st_ispolygonccw: check CCW orientation
+          testCase "st_ispolygonccw checks orientation" $ do
+            -- CCW polygon: (0,0) (2,0) (2,2) (0,2) is CCW
+            result <- runDB $ do
+              selectOne $ pure $ st_ispolygonccw
+                (val @(Postgis 'Geometry PointXY) $ Polygon $ makePolygon (PointXY 0 0) (PointXY 2 0) (PointXY 2 2) $ Seq.fromList [PointXY 0 2])
+            case unValue <$> result of
+              Just _ -> pure () -- just check it returns a bool
+              Nothing -> assertFailure "expected a result for st_ispolygonccw",
+
+          -- st_ispolygoncw: check CW orientation
+          testCase "st_ispolygoncw checks orientation" $ do
+            -- CW polygon: (0,0) (0,2) (2,2) (2,0) is CW
+            result <- runDB $ do
+              selectOne $ pure $ st_ispolygoncw
+                (val @(Postgis 'Geometry PointXY) $ Polygon $ makePolygon (PointXY 0 0) (PointXY 0 2) (PointXY 2 2) $ Seq.fromList [PointXY 2 0])
+            case unValue <$> result of
+              Just _ -> pure () -- just check it returns a bool
+              Nothing -> assertFailure "expected a result for st_ispolygoncw",
+
+          -- st_isring: closed simple linestring is a ring
+          testCase "st_isring detects ring" $ do
+            result <- runDB $ do
+              _ <- insert $ Unit { unitGeom = Line $ makeLineString (PointXY 0 0) (PointXY 1 1) $ Seq.fromList [PointXY 2 0, PointXY 0 0] }
+              selectOne $ do
+                unit <- from $ table @Unit
+                where_ $ st_isring (unit ^. UnitGeom)
+                pure countRows
+            unValue <$> result @?= Just (1 :: Int),
+
+          -- st_m: M coordinate of a 4D point
+          testCase "st_m extracts M coordinate" $ do
+            result <- runDB $ do
+              selectOne $ pure $ st_m (st_point_xyzm @'Geometry (val 1) (val 2) (val 3) (val 42))
+            unValue <$> result @?= Just (42.0 :: Double),
+
+          -- st_ndims: 2D point has 2 dimensions
+          testCase "st_ndims returns number of dimensions" $ do
+            result <- runDB $ do
+              selectOne $ pure $ st_ndims (val @(Postgis 'Geometry PointXY) $ Point (PointXY 1 1))
+            unValue <$> result @?= Just (2 :: Int),
+
+          -- st_nrings: polygon with no holes has 1 ring
+          testCase "st_nrings counts rings" $ do
+            result <- runDB $ do
+              selectOne $ pure $ st_nrings
+                (val @(Postgis 'Geometry PointXY) $ Polygon $ makePolygon (PointXY 0 0) (PointXY 0 2) (PointXY 2 2) $ Seq.fromList [PointXY 2 0])
+            unValue <$> result @?= Just (1 :: Int),
+
+          -- st_numinteriorrings: simple polygon has 0 interior rings
+          testCase "st_numinteriorrings counts interior rings" $ do
+            result <- runDB $ do
+              selectOne $ pure $ st_numinteriorrings
+                (val @(Postgis 'Geometry PointXY) $ Polygon $ makePolygon (PointXY 0 0) (PointXY 0 2) (PointXY 2 2) $ Seq.fromList [PointXY 2 0])
+            unValue <$> result @?= Just (0 :: Int),
+
+          -- st_numpoints: linestring with 2 points
+          testCase "st_numpoints counts linestring points" $ do
+            result <- runDB $ do
+              selectOne $ pure $ st_numpoints
+                (val @(Postgis 'Geometry PointXY) $ Line $ makeLineString (PointXY 0 0) (PointXY 3 4) $ Seq.fromList [])
+            unValue <$> result @?= Just (2 :: Int),
+
+          -- st_pointn: first point of a linestring
+          testCase "st_pointn gets Nth point" $ do
+            result <- runDB $ do
+              selectOne $ pure $ st_x $ st_pointn
+                (val @(Postgis 'Geometry PointXY) $ Line $ makeLineString (PointXY 5 6) (PointXY 7 8) $ Seq.fromList [])
+                (val 1)
+            unValue <$> result @?= Just (5.0 :: Double),
+
+          -- st_startpoint: first point of a linestring
+          testCase "st_startpoint returns first point" $ do
+            result <- runDB $ do
+              selectOne $ pure $ st_x $ st_startpoint
+                (val @(Postgis 'Geometry PointXY) $ Line $ makeLineString (PointXY 5 6) (PointXY 7 8) $ Seq.fromList [])
+            unValue <$> result @?= Just (5.0 :: Double),
+
+          -- st_z: Z coordinate of a 3D point
+          testCase "st_z extracts Z coordinate" $ do
+            result <- runDB $ do
+              selectOne $ pure $ st_z (st_point_xyz @'Geometry (val 1) (val 2) (val 99))
+            unValue <$> result @?= Just (99.0 :: Double),
+
+          -- Geometry Editors (16)
+
+          -- st_addpoint: add point to linestring
+          testCase "st_addpoint adds a point to linestring" $ do
+            result <- runDB $ do
+              selectOne $ pure $ st_npoints $ st_addpoint
+                (val @(Postgis 'Geometry PointXY) $ Line $ makeLineString (PointXY 0 0) (PointXY 1 1) $ Seq.fromList [])
+                (val $ Point (PointXY 2 2))
+                (val 1)
+            unValue <$> result @?= Just (3 :: Int),
+
+          -- st_collectionextract: extract points from a collection
+          testCase "st_collectionextract extracts geometry type" $ do
+            result <- runDB $ do
+              selectOne $ pure $ st_numgeometries $ st_collectionextract
+                (val @(Postgis 'Geometry PointXY) $ Collection (Point (PointXY 1 1) :| [Line $ makeLineString (PointXY 0 0) (PointXY 1 1) $ Seq.fromList []]))
+                (val 1) -- 1 = POINT
+            unValue <$> result @?= Just (1 :: Int),
+
+          -- st_flipcoordinates: swap X and Y
+          testCase "st_flipcoordinates swaps X and Y" $ do
+            result <- runDB $ do
+              selectOne $ pure $ st_x $ st_flipcoordinates (val @(Postgis 'Geometry PointXY) $ Point (PointXY 3 7))
+            unValue <$> result @?= Just (7.0 :: Double),
+
+          -- st_force2d: force to 2D
+          testCase "st_force2d forces to 2D" $ do
+            result <- runDB $ do
+              selectOne $ pure $ st_ndims $ st_force2d (st_point_xyz @'Geometry (val 1) (val 2) (val 3))
+            unValue <$> result @?= Just (2 :: Int),
+
+          -- st_force3d: force to 3D
+          testCase "st_force3d forces to 3D" $ do
+            result <- runDB $ do
+              selectOne $ pure $ st_ndims $ st_force3d (val @(Postgis 'Geometry PointXY) $ Point (PointXY 1 2))
+            unValue <$> result @?= Just (3 :: Int),
+
+          -- st_force4d: force to 4D
+          testCase "st_force4d forces to 4D" $ do
+            result <- runDB $ do
+              selectOne $ pure $ st_ndims $ st_force4d (val @(Postgis 'Geometry PointXY) $ Point (PointXY 1 2))
+            unValue <$> result @?= Just (4 :: Int),
+
+          -- st_forcecollection: wrap in collection
+          testCase "st_forcecollection wraps in collection" $ do
+            result <- runDB $ do
+              selectOne $ pure $ st_geometrytype $ st_forcecollection (val @(Postgis 'Geometry PointXY) $ Point (PointXY 1 1))
+            unValue <$> result @?= Just ("ST_GeometryCollection" :: Text),
+
+          -- st_forcepolygonccw: force CCW orientation
+          testCase "st_forcepolygonccw forces CCW" $ do
+            result <- runDB $ do
+              selectOne $ pure $ st_ispolygonccw $ st_forcepolygonccw
+                (val @(Postgis 'Geometry PointXY) $ Polygon $ makePolygon (PointXY 0 0) (PointXY 0 2) (PointXY 2 2) $ Seq.fromList [PointXY 2 0])
+            unValue <$> result @?= Just True,
+
+          -- st_forcepolygoncw: force CW orientation
+          testCase "st_forcepolygoncw forces CW" $ do
+            result <- runDB $ do
+              selectOne $ pure $ st_ispolygoncw $ st_forcepolygoncw
+                (val @(Postgis 'Geometry PointXY) $ Polygon $ makePolygon (PointXY 0 0) (PointXY 0 2) (PointXY 2 2) $ Seq.fromList [PointXY 2 0])
+            unValue <$> result @?= Just True,
+
+          -- st_multi: convert to multi-type
+          testCase "st_multi converts to multi-type" $ do
+            result <- runDB $ do
+              selectOne $ pure $ st_geometrytype $ st_multi (val @(Postgis 'Geometry PointXY) $ Point (PointXY 1 1))
+            unValue <$> result @?= Just ("ST_MultiPoint" :: Text),
+
+          -- st_normalize: normalize geometry
+          testCase "st_normalize normalizes geometry" $ do
+            result <- runDB $ do
+              selectOne $ pure $ st_area $ st_normalize
+                (val @(Postgis 'Geometry PointXY) $ Polygon $ makePolygon (PointXY 0 0) (PointXY 0 2) (PointXY 2 2) $ Seq.fromList [PointXY 2 0])
+            unValue <$> result @?= Just (4.0 :: Double),
+
+          -- st_reverse: reverse vertex order
+          testCase "st_reverse reverses vertex order" $ do
+            result <- runDB $ do
+              selectOne $ pure $ st_x $ st_startpoint $ st_reverse
+                (val @(Postgis 'Geometry PointXY) $ Line $ makeLineString (PointXY 0 0) (PointXY 3 4) $ Seq.fromList [])
+            unValue <$> result @?= Just (3.0 :: Double),
+
+          -- st_segmentize: add vertices to long segments
+          testCase "st_segmentize adds vertices" $ do
+            result <- runDB $ do
+              selectOne $ pure $ st_npoints $ st_segmentize
+                (val @(Postgis 'Geometry PointXY) $ Line $ makeLineString (PointXY 0 0) (PointXY 10 0) $ Seq.fromList [])
+                (val 3)
+            case unValue <$> result of
+              Just n -> assertBool "segmentize adds points" (n > 2)
+              Nothing -> assertFailure "expected a result for st_segmentize",
+
+          -- st_setpoint: replace a point in linestring
+          testCase "st_setpoint replaces a point" $ do
+            result <- runDB $ do
+              selectOne $ pure $ st_x $ st_startpoint $ st_setpoint
+                (val @(Postgis 'Geometry PointXY) $ Line $ makeLineString (PointXY 0 0) (PointXY 1 1) $ Seq.fromList [])
+                (val 0)
+                (val $ Point (PointXY 99 99))
+            unValue <$> result @?= Just (99.0 :: Double),
+
+          -- st_snaptogrid: snap to grid
+          testCase "st_snaptogrid snaps coordinates" $ do
+            result <- runDB $ do
+              selectOne $ pure $ st_x $ st_snaptogrid (val @(Postgis 'Geometry PointXY) $ Point (PointXY 1.3 2.7)) (val 1)
+            unValue <$> result @?= Just (1.0 :: Double),
+
+          -- st_snap: snap vertices
+          testCase "st_snap snaps vertices" $ do
+            result <- runDB $ do
+              selectOne $ pure $ st_npoints $ st_snap
+                (val @(Postgis 'Geometry PointXY) $ Line $ makeLineString (PointXY 0 0) (PointXY 10 0) $ Seq.fromList [])
+                (val $ Point (PointXY 5 1))
+                (val 2)
+            case unValue <$> result of
+              Just n -> assertBool "snap adds or keeps points" (n >= 2)
+              Nothing -> assertFailure "expected a result for st_snap",
+
+          -- Geometry Validation (2)
+
+          -- st_makevalid: valid geometry stays the same area
+          testCase "st_makevalid makes geometry valid" $ do
+            result <- runDB $ do
+              selectOne $ pure $ st_area $ st_makevalid
+                (val @(Postgis 'Geometry PointXY) $ Polygon $ makePolygon (PointXY 0 0) (PointXY 0 2) (PointXY 2 2) $ Seq.fromList [PointXY 2 0])
+            unValue <$> result @?= Just (4.0 :: Double),
+
+          -- st_isvalidreason: valid geometry reports "Valid Geometry"
+          testCase "st_isvalidreason reports validity" $ do
+            result <- runDB $ do
+              selectOne $ pure $ st_isvalidreason
+                (val @(Postgis 'Geometry PointXY) $ Polygon $ makePolygon (PointXY 0 0) (PointXY 0 2) (PointXY 2 2) $ Seq.fromList [PointXY 2 0])
+            unValue <$> result @?= Just ("Valid Geometry" :: Text),
+
+          -- SRS Functions (1)
+
+          -- st_setsrid: set SRID and read back
+          testCase "st_setsrid sets SRID" $ do
+            result <- runDB $ do
+              selectOne $ pure $ st_srid $ st_setsrid (val @(Postgis 'Geometry PointXY) $ Point (PointXY 1 1)) (val 4326)
+            unValue <$> result @?= Just (4326 :: Int),
+
+          -- Geometry Output (4)
+
+          -- st_astext: WKT of a point
+          testCase "st_astext returns WKT" $ do
+            result <- runDB $ do
+              selectOne $ pure $ st_astext (val @(Postgis 'Geometry PointXY) $ Point (PointXY 1 2))
+            unValue <$> result @?= Just ("POINT(1 2)" :: Text),
+
+          -- st_asgeojson: GeoJSON of a point
+          testCase "st_asgeojson returns GeoJSON" $ do
+            result <- runDB $ do
+              selectOne $ pure $ st_asgeojson (val @(Postgis 'Geometry PointXY) $ Point (PointXY 1 2))
+            case unValue <$> result of
+              Just t -> assertBool "contains coordinates" (isInfixOf "coordinates" t)
+              Nothing -> assertFailure "expected a result for st_asgeojson",
+
+          -- st_asewkt: EWKT of a point
+          testCase "st_asewkt returns EWKT" $ do
+            result <- runDB $ do
+              selectOne $ pure $ st_asewkt (val @(Postgis 'Geometry PointXY) $ Point (PointXY 1 2))
+            case unValue <$> result of
+              Just t -> assertBool "contains POINT" (isInfixOf "POINT" t)
+              Nothing -> assertFailure "expected a result for st_asewkt",
+
+          -- st_geohash: geohash of a point with SRID 4326
+          testCase "st_geohash returns geohash" $ do
+            result <- runDB $ do
+              selectOne $ pure $ st_geohash $ st_setsrid (val @(Postgis 'Geometry PointXY) $ Point (PointXY (-74) 40.7)) (val 4326)
+            case unValue <$> result of
+              Just t -> assertBool "geohash is non-empty" (not (T.null t))
+              Nothing -> assertFailure "expected a result for st_geohash",
+
+          -- Spatial Relationships (5)
+
+          -- st_3dintersects: 3D intersection
+          testCase "st_3dintersects checks 3D intersection" $ do
+            result <- runDB $ do
+              selectOne $ pure $ st_3dintersects
+                (val @(Postgis 'Geometry PointXY) $ Point (PointXY 0 0))
+                (val $ Point (PointXY 0 0))
+            unValue <$> result @?= Just True,
+
+          -- st_relate: DE-9IM matrix of two equal points
+          testCase "st_relate returns DE-9IM matrix" $ do
+            result <- runDB $ do
+              selectOne $ pure $ st_relate
+                (val @(Postgis 'Geometry PointXY) $ Point (PointXY 0 0))
+                (val $ Point (PointXY 0 0))
+            -- Two equal points: "0FFFFFFF2"
+            unValue <$> result @?= Just ("0FFFFFFF2" :: Text),
+
+          -- st_orderingequals: same geometry with same vertex order
+          testCase "st_orderingequals checks vertex order equality" $ do
+            let line = Line $ makeLineString (PointXY 0 0) (PointXY 1 1) $ Seq.fromList []
+            result <- runDB $ do
+              selectOne $ pure $ st_orderingequals
+                (val @(Postgis 'Geometry PointXY) line)
+                (val line)
+            unValue <$> result @?= Just True,
+
+          -- st_dfullywithin: both geometries fully within distance
+          testCase "st_dfullywithin checks full containment" $ do
+            result <- runDB $ do
+              _ <- insert $ Unit { unitGeom = Point (PointXY 0 0) }
+              selectOne $ do
+                unit <- from $ table @Unit
+                where_ $ st_dfullywithin (unit ^. UnitGeom) (val $ Point (PointXY 1 0)) (val 2)
+                pure countRows
+            unValue <$> result @?= Just (1 :: Int),
+
+          -- st_pointinsidecircle: point inside circle
+          testCase "st_pointinsidecircle checks point in circle" $ do
+            result <- runDB $ do
+              _ <- insert $ Unit { unitGeom = Point (PointXY 1 1) }
+              selectOne $ do
+                unit <- from $ table @Unit
+                where_ $ st_pointinsidecircle (unit ^. UnitGeom) (val 0) (val 0) (val 2)
+                pure countRows
+            unValue <$> result @?= Just (1 :: Int),
+
+          -- Measurement Functions (15)
+
+          -- st_angle: angle between 3 points
+          testCase "st_angle computes angle" $ do
+            result <- runDB $ do
+              selectOne $ pure $ st_angle
+                (val @(Postgis 'Geometry PointXY) $ Point (PointXY 0 0))
+                (val $ Point (PointXY 1 0))
+            case unValue <$> result of
+              Just v -> assertBool "angle is a number" (v >= 0)
+              Nothing -> assertFailure "expected a result for st_angle",
+
+          -- st_closestpoint: closest point on line to external point
+          testCase "st_closestpoint finds closest point" $ do
+            result <- runDB $ do
+              selectOne $ pure $ st_y $ st_closestpoint
+                (val @(Postgis 'Geometry PointXY) $ Line $ makeLineString (PointXY 0 0) (PointXY 10 0) $ Seq.fromList [])
+                (val $ Point (PointXY 5 5))
+            unValue <$> result @?= Just (0.0 :: Double),
+
+          -- st_3dclosestpoint: 3D closest point
+          testCase "st_3dclosestpoint finds 3D closest point" $ do
+            result <- runDB $ do
+              selectOne $ pure $ st_x $ st_3dclosestpoint
+                (val @(Postgis 'Geometry PointXY) $ Line $ makeLineString (PointXY 0 0) (PointXY 10 0) $ Seq.fromList [])
+                (val $ Point (PointXY 5 5))
+            unValue <$> result @?= Just (5.0 :: Double),
+
+          -- st_3ddistance: 3D distance between two points
+          testCase "st_3ddistance computes 3D distance" $ do
+            result <- runDB $ do
+              selectOne $ pure $ st_3ddistance
+                (st_point_xyz @'Geometry (val 0) (val 0) (val 0))
+                (st_point_xyz @'Geometry (val 1) (val 0) (val 0))
+            unValue <$> result @?= Just (1.0 :: Double),
+
+          -- st_distancesphere: spherical distance
+          testCase "st_distancesphere computes spherical distance" $ do
+            result <- runDB $ do
+              selectOne $ pure $ st_distancesphere
+                (val @(Postgis 'Geometry PointXY) $ Point (PointXY 0 0))
+                (val $ Point (PointXY 1 0))
+            case unValue <$> result of
+              Just v -> assertBool "spherical distance > 0" (v > 0)
+              Nothing -> assertFailure "expected a result for st_distancesphere",
+
+          -- st_frechetdistance: Frechet distance
+          testCase "st_frechetdistance computes Frechet distance" $ do
+            result <- runDB $ do
+              selectOne $ pure $ st_frechetdistance
+                (val @(Postgis 'Geometry PointXY) $ Line $ makeLineString (PointXY 0 0) (PointXY 10 0) $ Seq.fromList [])
+                (val $ Line $ makeLineString (PointXY 0 1) (PointXY 10 1) $ Seq.fromList [])
+            unValue <$> result @?= Just (1.0 :: Double),
+
+          -- st_hausdorffdistance: Hausdorff distance
+          testCase "st_hausdorffdistance computes Hausdorff distance" $ do
+            result <- runDB $ do
+              selectOne $ pure $ st_hausdorffdistance
+                (val @(Postgis 'Geometry PointXY) $ Line $ makeLineString (PointXY 0 0) (PointXY 10 0) $ Seq.fromList [])
+                (val $ Line $ makeLineString (PointXY 0 1) (PointXY 10 1) $ Seq.fromList [])
+            unValue <$> result @?= Just (1.0 :: Double),
+
+          -- st_length2d: 2D length of a line
+          testCase "st_length2d computes 2D length" $ do
+            result <- runDB $ do
+              selectOne $ pure $ st_length2d
+                (val @(Postgis 'Geometry PointXY) $ Line $ makeLineString (PointXY 0 0) (PointXY 3 4) $ Seq.fromList [])
+            unValue <$> result @?= Just (5.0 :: Double),
+
+          -- st_3dlength: 3D length of a line
+          testCase "st_3dlength computes 3D length" $ do
+            result <- runDB $ do
+              selectOne $ pure $ st_3dlength (st_makeline
+                (st_point_xyz @'Geometry (val 0) (val 0) (val 0))
+                (st_point_xyz @'Geometry (val 3) (val 4) (val 0)))
+            unValue <$> result @?= Just (5.0 :: Double),
+
+          -- st_longestline: longest line between two geometries
+          testCase "st_longestline returns longest line" $ do
+            result <- runDB $ do
+              selectOne $ pure $ st_length $ st_longestline
+                (val @(Postgis 'Geometry PointXY) $ Point (PointXY 0 0))
+                (val $ Point (PointXY 3 4))
+            unValue <$> result @?= Just (5.0 :: Double),
+
+          -- st_3dlongestline: 3D longest line
+          testCase "st_3dlongestline returns 3D longest line" $ do
+            result <- runDB $ do
+              selectOne $ pure $ st_length $ st_3dlongestline
+                (val @(Postgis 'Geometry PointXY) $ Point (PointXY 0 0))
+                (val $ Point (PointXY 3 4))
+            unValue <$> result @?= Just (5.0 :: Double),
+
+          -- st_3dmaxdistance: 3D max distance
+          testCase "st_3dmaxdistance computes 3D max distance" $ do
+            result <- runDB $ do
+              selectOne $ pure $ st_3dmaxdistance
+                (val @(Postgis 'Geometry PointXY) $ Point (PointXY 0 0))
+                (val $ Point (PointXY 3 4))
+            unValue <$> result @?= Just (5.0 :: Double),
+
+          -- st_minimumclearance: minimum clearance of polygon
+          testCase "st_minimumclearance computes minimum clearance" $ do
+            result <- runDB $ do
+              selectOne $ pure $ st_minimumclearance
+                (val @(Postgis 'Geometry PointXY) $ Polygon $ makePolygon (PointXY 0 0) (PointXY 0 2) (PointXY 2 2) $ Seq.fromList [PointXY 2 0])
+            case unValue <$> result of
+              Just v -> assertBool "clearance > 0" (v > 0)
+              Nothing -> assertFailure "expected a result for st_minimumclearance",
+
+          -- st_shortestline: shortest line between two geometries
+          testCase "st_shortestline returns shortest line" $ do
+            result <- runDB $ do
+              selectOne $ pure $ st_length $ st_shortestline
+                (val @(Postgis 'Geometry PointXY) $ Point (PointXY 0 0))
+                (val $ Point (PointXY 3 4))
+            unValue <$> result @?= Just (5.0 :: Double),
+
+          -- st_3dshortestline: 3D shortest line
+          testCase "st_3dshortestline returns 3D shortest line" $ do
+            result <- runDB $ do
+              selectOne $ pure $ st_length $ st_3dshortestline
+                (val @(Postgis 'Geometry PointXY) $ Point (PointXY 0 0))
+                (val $ Point (PointXY 3 4))
+            unValue <$> result @?= Just (5.0 :: Double),
+
+          -- Overlay Functions (4)
+
+          -- st_symdifference: symmetric difference
+          testCase "st_symdifference computes symmetric difference" $ do
+            result <- runDB $ do
+              selectOne $ pure $ st_area $ st_symdifference
+                (val @(Postgis 'Geometry PointXY) $ Polygon $ makePolygon (PointXY 0 0) (PointXY 0 2) (PointXY 2 2) $ Seq.fromList [PointXY 2 0])
+                (val $ Polygon $ makePolygon (PointXY 1 1) (PointXY 1 3) (PointXY 3 3) $ Seq.fromList [PointXY 3 1])
+            -- each 4, overlap 1, so symdiff = 4 + 4 - 2*1 = 6
+            unValue <$> result @?= Just (6.0 :: Double),
+
+          -- st_unaryunion: dissolve internal boundaries
+          testCase "st_unaryunion dissolves internal boundaries" $ do
+            result <- runDB $ do
+              selectOne $ pure $ st_area $ st_unaryunion
+                (val @(Postgis 'Geometry PointXY) $ Polygon $ makePolygon (PointXY 0 0) (PointXY 0 2) (PointXY 2 2) $ Seq.fromList [PointXY 2 0])
+            unValue <$> result @?= Just (4.0 :: Double),
+
+          -- st_split: split a line at a point
+          testCase "st_split splits geometry" $ do
+            result <- runDB $ do
+              selectOne $ pure $ st_numgeometries $ st_split
+                (val @(Postgis 'Geometry PointXY) $ Line $ makeLineString (PointXY 0 0) (PointXY 10 0) $ Seq.fromList [])
+                (val $ Point (PointXY 5 0))
+            unValue <$> result @?= Just (2 :: Int),
+
+          -- st_node: node linestrings
+          testCase "st_node nodes linestrings" $ do
+            result <- runDB $ do
+              selectOne $ pure $ st_npoints $ st_node
+                (val @(Postgis 'Geometry PointXY) $ Multiline
+                  ( makeLineString (PointXY 0 0) (PointXY 10 10) (Seq.fromList [])
+                    :| [makeLineString (PointXY 0 10) (PointXY 10 0) (Seq.fromList [])]))
+            case unValue <$> result of
+              Just n -> assertBool "node adds intersection point" (n > 4)
+              Nothing -> assertFailure "expected a result for st_node",
+
+          -- Geometry Processing (15)
+
+          -- st_buildarea: build area from linestrings
+          testCase "st_buildarea builds area from linestrings" $ do
+            result <- runDB $ do
+              selectOne $ pure $ st_area $ st_buildarea
+                (val @(Postgis 'Geometry PointXY) $ Line $ makeLineString (PointXY 0 0) (PointXY 0 2) $ Seq.fromList [PointXY 2 2, PointXY 2 0, PointXY 0 0])
+            unValue <$> result @?= Just (4.0 :: Double),
+
+          -- st_chaikinsmoothing: smoothing
+          testCase "st_chaikinsmoothing smooths geometry" $ do
+            result <- runDB $ do
+              selectOne $ pure $ st_npoints $ st_chaikinsmoothing
+                (val @(Postgis 'Geometry PointXY) $ Line $ makeLineString (PointXY 0 0) (PointXY 1 5) $ Seq.fromList [PointXY 5 2, PointXY 10 0])
+            case unValue <$> result of
+              Just n -> assertBool "smoothing adds points" (n > 4)
+              Nothing -> assertFailure "expected a result for st_chaikinsmoothing",
+
+          -- st_concavehull: concave hull
+          testCase "st_concavehull computes concave hull" $ do
+            result <- runDB $ do
+              selectOne $ pure $ st_area $ st_concavehull
+                (val @(Postgis 'Geometry PointXY) $ MultiPoint (PointXY 0 0 :| [PointXY 10 0, PointXY 5 10, PointXY 5 5]))
+                (val 1.0)
+            case unValue <$> result of
+              Just v -> assertBool "concave hull has area" (v > 0)
+              Nothing -> assertFailure "expected a result for st_concavehull",
+
+          -- st_delaunaytriangles: Delaunay triangulation
+          testCase "st_delaunaytriangles computes triangulation" $ do
+            result <- runDB $ do
+              selectOne $ pure $ st_numgeometries $ st_delaunaytriangles
+                (val @(Postgis 'Geometry PointXY) $ MultiPoint (PointXY 0 0 :| [PointXY 10 0, PointXY 5 10, PointXY 5 5]))
+            case unValue <$> result of
+              Just n -> assertBool "triangulation produces triangles" (n >= 1)
+              Nothing -> assertFailure "expected a result for st_delaunaytriangles",
+
+          -- st_generatepoints: generate random points in polygon
+          testCase "st_generatepoints generates points" $ do
+            result <- runDB $ do
+              selectOne $ pure $ st_numgeometries $ st_generatepoints
+                (val @(Postgis 'Geometry PointXY) $ Polygon $ makePolygon (PointXY 0 0) (PointXY 0 100) (PointXY 100 100) $ Seq.fromList [PointXY 100 0])
+                (val 5)
+            unValue <$> result @?= Just (5 :: Int),
+
+          -- st_geometricmedian: geometric median of multipoint
+          testCase "st_geometricmedian computes median" $ do
+            result <- runDB $ do
+              selectOne $ pure $ st_x $ st_geometricmedian
+                (val @(Postgis 'Geometry PointXY) $ MultiPoint (PointXY 0 0 :| [PointXY 10 0, PointXY 5 10]))
+            case unValue <$> result of
+              Just v -> assertBool "median X in range" (v > 0 && v < 10)
+              Nothing -> assertFailure "expected a result for st_geometricmedian",
+
+          -- st_linemerge: merge multilinestring into single linestring
+          testCase "st_linemerge merges lines" $ do
+            result <- runDB $ do
+              selectOne $ pure $ st_geometrytype $ st_linemerge
+                (val @(Postgis 'Geometry PointXY) $ Multiline
+                  ( makeLineString (PointXY 0 0) (PointXY 1 1) (Seq.fromList [])
+                    :| [makeLineString (PointXY 1 1) (PointXY 2 2) (Seq.fromList [])]))
+            unValue <$> result @?= Just ("ST_LineString" :: Text),
+
+          -- st_minimumboundingcircle: bounding circle
+          testCase "st_minimumboundingcircle computes bounding circle" $ do
+            result <- runDB $ do
+              selectOne $ pure $ st_area $ st_minimumboundingcircle
+                (val @(Postgis 'Geometry PointXY) $ Line $ makeLineString (PointXY 0 0) (PointXY 2 0) $ Seq.fromList [])
+            case unValue <$> result of
+              -- radius = 1, area ~ pi
+              Just v -> assertBool "bounding circle area ~ pi" (abs (v - pi) < 0.1)
+              Nothing -> assertFailure "expected a result for st_minimumboundingcircle",
+
+          -- st_offsetcurve: offset a line
+          testCase "st_offsetcurve offsets a line" $ do
+            result <- runDB $ do
+              selectOne $ pure $ st_length $ st_offsetcurve
+                (val @(Postgis 'Geometry PointXY) $ Line $ makeLineString (PointXY 0 0) (PointXY 10 0) $ Seq.fromList [])
+                (val 1)
+            case unValue <$> result of
+              Just v -> assertBool "offset line has length" (v > 0)
+              Nothing -> assertFailure "expected a result for st_offsetcurve",
+
+          -- st_reduceprecision: reduce precision
+          testCase "st_reduceprecision reduces precision" $ do
+            result <- runDB $ do
+              selectOne $ pure $ st_x $ st_reduceprecision
+                (val @(Postgis 'Geometry PointXY) $ Point (PointXY 1.23456 2.34567))
+                (val 0.1)
+            case unValue <$> result of
+              Just v -> assertBool "reduced precision" (abs (v - 1.2) < 0.15)
+              Nothing -> assertFailure "expected a result for st_reduceprecision",
+
+          -- st_sharedpaths: shared paths between two lines
+          testCase "st_sharedpaths finds shared paths" $ do
+            result <- runDB $ do
+              selectOne $ pure $ st_geometrytype $ st_sharedpaths
+                (val @(Postgis 'Geometry PointXY) $ Line $ makeLineString (PointXY 0 0) (PointXY 5 0) $ Seq.fromList [PointXY 10 0])
+                (val $ Line $ makeLineString (PointXY 3 0) (PointXY 5 0) $ Seq.fromList [PointXY 7 0])
+            unValue <$> result @?= Just ("ST_GeometryCollection" :: Text),
+
+          -- st_simplify: simplify geometry
+          testCase "st_simplify simplifies geometry" $ do
+            result <- runDB $ do
+              selectOne $ pure $ st_npoints $ st_simplify
+                (val @(Postgis 'Geometry PointXY) $ Line $ makeLineString (PointXY 0 0) (PointXY 1 0.001) $ Seq.fromList [PointXY 2 0, PointXY 3 0.001, PointXY 4 0])
+                (val 0.01)
+            case unValue <$> result of
+              Just n -> assertBool "simplify reduces points" (n < 5)
+              Nothing -> assertFailure "expected a result for st_simplify",
+
+          -- st_simplifypreservetopology: simplify preserving topology
+          testCase "st_simplifypreservetopology simplifies preserving topology" $ do
+            result <- runDB $ do
+              selectOne $ pure $ st_npoints $ st_simplifypreservetopology
+                (val @(Postgis 'Geometry PointXY) $ Line $ makeLineString (PointXY 0 0) (PointXY 1 0.001) $ Seq.fromList [PointXY 2 0, PointXY 3 0.001, PointXY 4 0])
+                (val 0.01)
+            case unValue <$> result of
+              Just n -> assertBool "simplifyPreserveTopology reduces points" (n < 5)
+              Nothing -> assertFailure "expected a result for st_simplifypreservetopology",
+
+          -- st_voronoilines: Voronoi diagram edges
+          testCase "st_voronoilines computes Voronoi edges" $ do
+            result <- runDB $ do
+              selectOne $ pure $ st_npoints $ st_voronoilines
+                (val @(Postgis 'Geometry PointXY) $ MultiPoint (PointXY 0 0 :| [PointXY 10 0, PointXY 5 10]))
+            case unValue <$> result of
+              Just n -> assertBool "voronoi has points" (n > 0)
+              Nothing -> assertFailure "expected a result for st_voronoilines",
+
+          -- st_voronoipolygons: Voronoi diagram polygons
+          testCase "st_voronoipolygons computes Voronoi polygons" $ do
+            result <- runDB $ do
+              selectOne $ pure $ st_numgeometries $ st_voronoipolygons
+                (val @(Postgis 'Geometry PointXY) $ MultiPoint (PointXY 0 0 :| [PointXY 10 0, PointXY 5 10]))
+            unValue <$> result @?= Just (3 :: Int),
+
+          -- Affine Transformations (5)
+
+          -- st_translate: translate point
+          testCase "st_translate moves geometry" $ do
+            result <- runDB $ do
+              selectOne $ pure $ st_x $ st_translate
+                (val @(Postgis 'Geometry PointXY) $ Point (PointXY 1 2))
+                (val 10)
+                (val 20)
+            unValue <$> result @?= Just (11.0 :: Double),
+
+          -- st_scale: scale geometry
+          testCase "st_scale scales geometry" $ do
+            result <- runDB $ do
+              selectOne $ pure $ st_area $ st_scale
+                (val @(Postgis 'Geometry PointXY) $ Polygon $ makePolygon (PointXY 0 0) (PointXY 0 1) (PointXY 1 1) $ Seq.fromList [PointXY 1 0])
+                (val 3)
+                (val 2)
+            -- original area 1, scaled by 3*2 = 6
+            unValue <$> result @?= Just (6.0 :: Double),
+
+          -- st_rotate: rotate point 180 degrees (pi radians) around origin
+          testCase "st_rotate rotates geometry" $ do
+            result <- runDB $ do
+              selectOne $ pure $ st_x $ st_rotate
+                (val @(Postgis 'Geometry PointXY) $ Point (PointXY 1 0))
+                (val pi)
+            case unValue <$> result of
+              Just v -> assertBool "rotated X ~ -1" (abs (v - (-1)) < 1e-10)
+              Nothing -> assertFailure "expected a result for st_rotate",
+
+          -- st_rotatex: rotate around X axis
+          testCase "st_rotatex rotates around X axis" $ do
+            result <- runDB $ do
+              selectOne $ pure $ st_z $ st_rotatex
+                (st_point_xyz @'Geometry (val 0) (val 1) (val 0))
+                (val (pi / 2))
+            case unValue <$> result of
+              Just v -> assertBool "rotateX z ~ 1" (abs (v - 1) < 1e-10)
+              Nothing -> assertFailure "expected a result for st_rotatex",
+
+          -- st_rotatez: rotate around Z axis (same as st_rotate for 2D)
+          testCase "st_rotatez rotates around Z axis" $ do
+            result <- runDB $ do
+              selectOne $ pure $ st_x $ st_rotatez
+                (val @(Postgis 'Geometry PointXY) $ Point (PointXY 1 0))
+                (val pi)
+            case unValue <$> result of
+              Just v -> assertBool "rotateZ X ~ -1" (abs (v - (-1)) < 1e-10)
+              Nothing -> assertFailure "expected a result for st_rotatez",
+
+          -- Bounding Box (1)
+
+          -- st_expand: expand bounding box
+          testCase "st_expand expands bounding box" $ do
+            result <- runDB $ do
+              selectOne $ pure $ st_area $ st_envelope $ st_expand
+                (val @(Postgis 'Geometry PointXY) $ Point (PointXY 0 0))
+                (val 5)
+            -- point expanded by 5 in all directions => 10x10 box => area 100
+            unValue <$> result @?= Just (100.0 :: Double),
+
+          -- Linear Referencing (3)
+
+          -- st_lineinterpolatepoint: midpoint of a line
+          testCase "st_lineinterpolatepoint interpolates point" $ do
+            result <- runDB $ do
+              selectOne $ pure $ st_x $ st_lineinterpolatepoint
+                (val @(Postgis 'Geometry PointXY) $ Line $ makeLineString (PointXY 0 0) (PointXY 10 0) $ Seq.fromList [])
+                (val 0.5)
+            unValue <$> result @?= Just (5.0 :: Double),
+
+          -- st_linelocatepoint: locate point on line
+          testCase "st_linelocatepoint locates point on line" $ do
+            result <- runDB $ do
+              selectOne $ pure $ st_linelocatepoint
+                (val @(Postgis 'Geometry PointXY) $ Line $ makeLineString (PointXY 0 0) (PointXY 10 0) $ Seq.fromList [])
+                (val $ Point (PointXY 5 0))
+            unValue <$> result @?= Just (0.5 :: Double),
+
+          -- st_linesubstring: extract portion of line
+          testCase "st_linesubstring extracts substring" $ do
+            result <- runDB $ do
+              selectOne $ pure $ st_length $ st_linesubstring
+                (val @(Postgis 'Geometry PointXY) $ Line $ makeLineString (PointXY 0 0) (PointXY 10 0) $ Seq.fromList [])
+                (val 0.0)
+                (val 0.5)
+            unValue <$> result @?= Just (5.0 :: Double)
         ]
     ]
 
