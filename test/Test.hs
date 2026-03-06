@@ -757,7 +757,10 @@ postgisBindingsTests =
           -- st_m: M coordinate of a 4D point
           testCase "st_m extracts M coordinate" $ do
             result <- runDB $ do
-              selectOne $ pure $ st_m (st_point_xyzm @'Geometry (val 1) (val 2) (val 3) (val 42))
+              _ <- insert $ Unityzm { unityzmGeom = Point (PointXYZM 1 2 3 42) }
+              selectOne $ do
+                unit <- from $ table @Unityzm
+                pure $ st_m (unit ^. UnityzmGeom)
             unValue <$> result @?= Just (42.0 :: Double),
 
           -- st_ndims: 2D point has 2 dimensions
@@ -805,7 +808,10 @@ postgisBindingsTests =
           -- st_z: Z coordinate of a 3D point
           testCase "st_z extracts Z coordinate" $ do
             result <- runDB $ do
-              selectOne $ pure $ st_z (st_point_xyz @'Geometry (val 1) (val 2) (val 99))
+              _ <- insert $ Unityz { unityzGeom = Point (PointXYZ 1 2 99) }
+              selectOne $ do
+                unit <- from $ table @Unityz
+                pure $ st_z (unit ^. UnityzGeom)
             unValue <$> result @?= Just (99.0 :: Double),
 
           -- Geometry Editors (16)
@@ -836,7 +842,10 @@ postgisBindingsTests =
           -- st_force2d: force to 2D
           testCase "st_force2d forces to 2D" $ do
             result <- runDB $ do
-              selectOne $ pure $ st_ndims $ st_force2d (st_point_xyz @'Geometry (val 1) (val 2) (val 3))
+              _ <- insert $ Unityz { unityzGeom = Point (PointXYZ 1 2 3) }
+              selectOne $ do
+                unit <- from $ table @Unityz
+                pure $ st_ndims $ st_force2d (unit ^. UnityzGeom)
             unValue <$> result @?= Just (2 :: Int),
 
           -- st_force3d: force to 3D
@@ -1033,14 +1042,14 @@ postgisBindingsTests =
 
           -- Measurement Functions (15)
 
-          -- st_angle: angle between 3 points
+          -- st_angle: angle between two 2-point linestrings (PostGIS ST_Angle with 2 line args)
           testCase "st_angle computes angle" $ do
             result <- runDB $ do
               selectOne $ pure $ st_angle
-                (val @(Postgis 'Geometry PointXY) $ Point (PointXY 0 0))
-                (val $ Point (PointXY 1 0))
+                (val @(Postgis 'Geometry PointXY) $ Line $ makeLineString (PointXY 0 0) (PointXY 1 0) $ Seq.fromList [])
+                (val $ Line $ makeLineString (PointXY 0 0) (PointXY 0 1) $ Seq.fromList [])
             case unValue <$> result of
-              Just v -> assertBool "angle is a number" (v >= 0)
+              Just v -> assertBool "angle is finite" (v >= 0 && v <= 2 * pi)
               Nothing -> assertFailure "expected a result for st_angle",
 
           -- st_closestpoint: closest point on line to external point
@@ -1063,8 +1072,8 @@ postgisBindingsTests =
           testCase "st_3ddistance computes 3D distance" $ do
             result <- runDB $ do
               selectOne $ pure $ st_3ddistance
-                (st_point_xyz @'Geometry (val 0) (val 0) (val 0))
-                (st_point_xyz @'Geometry (val 1) (val 0) (val 0))
+                (val @(Postgis 'Geometry PointXYZ) $ Point (PointXYZ 0 0 0))
+                (val $ Point (PointXYZ 1 0 0))
             unValue <$> result @?= Just (1.0 :: Double),
 
           -- st_distancesphere: spherical distance
@@ -1103,9 +1112,9 @@ postgisBindingsTests =
           -- st_3dlength: 3D length of a line
           testCase "st_3dlength computes 3D length" $ do
             result <- runDB $ do
-              selectOne $ pure $ st_3dlength (st_makeline
-                (st_point_xyz @'Geometry (val 0) (val 0) (val 0))
-                (st_point_xyz @'Geometry (val 3) (val 4) (val 0)))
+              selectOne $ pure $ st_3dlength $ st_makeline
+                (val @(Postgis 'Geometry PointXYZ) $ Point (PointXYZ 0 0 0))
+                (val $ Point (PointXYZ 3 4 0))
             unValue <$> result @?= Just (5.0 :: Double),
 
           -- st_longestline: longest line between two geometries
@@ -1366,7 +1375,7 @@ postgisBindingsTests =
           testCase "st_rotatex rotates around X axis" $ do
             result <- runDB $ do
               selectOne $ pure $ st_z $ st_rotatex
-                (st_point_xyz @'Geometry (val 0) (val 1) (val 0))
+                (val @(Postgis 'Geometry PointXYZ) $ Point (PointXYZ 0 1 0))
                 (val (pi / 2))
             case unValue <$> result of
               Just v -> assertBool "rotateX z ~ 1" (abs (v - 1) < 1e-10)
