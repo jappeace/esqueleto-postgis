@@ -1256,7 +1256,10 @@ st_pointinsidecircle a cx cy r = unsafeSqlFunction "ST_PointInsideCircle" (a, cx
 -- Measurement Functions (additional)
 -- ---------------------------------------------------------------------------
 
--- | Returns the angle between three points, or between two vectors.
+-- | Returns the angle between two vectors defined by two 2-point linestrings.
+--   This is the 2-argument form of ST_Angle which expects linestring inputs.
+--   Passing point geometries will result in a NULL return value — use the
+--   3 or 4 point overloads in PostGIS directly if you need point-based angles.
 --   https://postgis.net/docs/ST_Angle.html
 st_angle ::
   SqlExpr (Value (Postgis 'Geometry a)) ->
