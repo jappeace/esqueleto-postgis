@@ -26,43 +26,90 @@ module Database.Esqueleto.Postgis
     SpatialType(..),
     getPoints,
 
-    -- * functions
-    st_contains,
-    st_intersects,
-    st_union,
-    st_unions,
-    st_dwithin,
-    st_distance         ,
+    -- * Spatial relationships
+    module Database.Esqueleto.Postgis.Spatial,
 
-    -- * points
+    -- * Measurement functions
+    module Database.Esqueleto.Postgis.Measurement,
+
+    -- * Geometry accessors
+    module Database.Esqueleto.Postgis.Accessor,
+
+    -- * Geometry constructors
+    st_collect,
+    st_makeenvelope,
+    st_makeline,
+    st_makepolygon_line,
+
+    -- * Geometry editors
+    module Database.Esqueleto.Postgis.Editor,
+
+    -- * Geometry validation
+    st_makevalid,
+    st_isvalidreason,
+
+    -- * SRS functions
+    st_setsrid,
+
+    -- * Geometry output
+    st_astext,
+    st_asgeojson,
+    st_asewkt,
+    st_geohash,
+
+    -- * Geometry processing
+    module Database.Esqueleto.Postgis.Processing,
+
+    -- * Affine transformations
+    st_translate,
+    st_scale,
+    st_rotate,
+    st_rotatex,
+    st_rotatez,
+
+    -- * Bounding box
+    st_expand,
+
+    -- * Linear referencing
+    st_lineinterpolatepoint,
+    st_linelocatepoint,
+    st_linesubstring,
+
+    -- * Points
     point,
     point_v,
     st_point,
     st_point_xyz,
     st_point_xyzm,
 
-    -- * transform
+    -- * Transform
     st_transform_geography,
     st_transform_geometry,
-    -- ** srid
+    -- ** SRID
     SRID,
     wgs84,
-    mercator ,
+    mercator,
     britishNationalGrid,
-    SridUnit    (..),
+    SridUnit(..),
 
-
-    -- * other
+    -- * Other
     makePolygon,
     PostgisGeometry,
     HasPgType,
 
-    -- * re-exports
+    -- * Re-exports
     PointXY(..),
     PointXYZ(..),
     PointXYZM(..),
   )
 where
+
+import Database.Esqueleto.Postgis.Geometry (Postgis(..), SpatialType(..), HasPgType(..), PostgisGeometry)
+import Database.Esqueleto.Postgis.Spatial
+import Database.Esqueleto.Postgis.Measurement
+import Database.Esqueleto.Postgis.Accessor
+import Database.Esqueleto.Postgis.Editor
+import Database.Esqueleto.Postgis.Processing
 
 import Database.Esqueleto.Experimental(val)
 import Data.Proxy
@@ -110,42 +157,6 @@ linearRingNonEmpty ls = ringHead ls :| drop 1 (fromLinearRing ls)
 
 tshow :: (Show a) => a -> Text
 tshow = pack . show
-
-
--- | Guarantees we don't accidently mix curved space with flat space.
---   Postgis will catch this too, this just put's it in the type system.
-data SpatialType = Geometry -- ^ assume a flat space.
-                 | Geography -- ^ assume curvature of the earth.
-
--- | technical typeclass to bind a spatial type to a string value.
---   because we represent the constructors as a datakind, we need
---   this to go back to a value.
-class HasPgType (spatialType :: SpatialType) where
-  pgType :: Proxy spatialType -> Text
-
-instance HasPgType 'Geometry where
-  pgType _ = "geometry"
-
-instance HasPgType 'Geography where
-  pgType _ = "geography"
-
--- | backwards compatibility, initial version only dealt in geometry
-type PostgisGeometry = Postgis 'Geometry
-
-
--- | like 'GeospatialGeometry' but not partial, eg no empty geometries.
---   Also can put an inveriant on dimensions if a function requires it.
---   for example 'st_intersects' 'PostgisGeometry' 'PointXY' can't work with 'PostgisGeometry' 'PointXYZ'.
---   PointXY indicates a 2 dimension space, and PointXYZ a three dimension space.
-data Postgis (spatialType :: SpatialType) point
-  = Point point
-  | MultiPoint (NonEmpty point)
-  | Line (LineString point)
-  | Multiline (NonEmpty (LineString point))
-  | Polygon (LinearRing point)
-  | MultiPolygon (NonEmpty (LinearRing point))
-  | Collection (NonEmpty (PostgisGeometry point))
-  deriving (Show, Functor, Eq)
 
 data GeomErrors
   = MismatchingDimensionsXYZ PointXYZ
@@ -290,29 +301,6 @@ instance HasPgType spatialType => PersistFieldSql (Postgis spatialType PointXYZ)
 instance HasPgType spatialType => PersistFieldSql (Postgis spatialType PointXYZM) where
   sqlType _ = SqlOther $ pgType $ Proxy @spatialType
 
-
--- | Returns TRUE if geometry A contains geometry B.
---   https://postgis.net/docs/ST_Contains.html
-st_contains ::
-  -- | geom a
-  SqlExpr (Value (Postgis 'Geometry a)) ->
-  -- | geom b
-  SqlExpr (Value (Postgis 'Geometry a)) ->
-  SqlExpr (Value Bool)
-st_contains a b = unsafeSqlFunction "ST_CONTAINS" (a, b)
-
--- | Returns true if the geometries are within a given distance
---   https://postgis.net/docs/ST_DWithin.html
-st_dwithin ::
-  -- | geometry g1
-  SqlExpr (Value (Postgis spatialType a)) ->
-  -- | geometry g2
-  SqlExpr (Value (Postgis spatialType a)) ->
-  -- | distance of srid
-  SqlExpr (Value Double) ->
-  SqlExpr (Value Bool)
-st_dwithin a b c = unsafeSqlFunction "ST_DWithin" (a, b, c)
-
 -- | SRID
 -- you can find your local like this: https://blog.rustprooflabs.com/2020/11/postgis-find-local-srid
 -- geography appears to use 'wgs84'. So I hardcoded the use going from geom to geography as that.
@@ -373,55 +361,192 @@ unsafe_cast_pg_type = unsafeSqlCastAs castAs
   where
     castAs = pgType $ Proxy @two
 
--- | allows union of geometries, eg group a bunch together,
---   https://postgis.net/docs/ST_Union.html
---   for example:
---
--- @
---  mCombined <- selectOne $ do
---    grid <- from $ table @Grid
---    pure $ st_union $ grid ^. GridGeom
---
---
---  select $  do
---    unit <- from $ table @Unit
---    forM_ mCombined $ \combined ->
---      where_ $ (unit ^. UnitGeom) `st_intersects` (val $ unValue combined)
---    pure unit
--- @
-st_union ::
+-- ---------------------------------------------------------------------------
+-- Geometry Constructors
+-- ---------------------------------------------------------------------------
+
+-- | Aggregate function that collects geometries into a geometry collection.
+--   https://postgis.net/docs/ST_Collect.html
+st_collect ::
   SqlExpr (Value (Postgis 'Geometry a)) ->
   SqlExpr (Value (Postgis 'Geometry a))
-st_union a = unsafeSqlFunction "ST_union" a
+st_collect a = unsafeSqlFunction "ST_Collect" a
 
-st_unions ::
+-- | Creates a rectangular polygon from minimum and maximum coordinates.
+--   https://postgis.net/docs/ST_MakeEnvelope.html
+st_makeenvelope ::
+  SqlExpr (Value Double) -> -- ^ xmin
+  SqlExpr (Value Double) -> -- ^ ymin
+  SqlExpr (Value Double) -> -- ^ xmax
+  SqlExpr (Value Double) -> -- ^ ymax
+  SqlExpr (Value Int) ->    -- ^ srid
+  SqlExpr (Value (Postgis 'Geometry a))
+st_makeenvelope xmin' ymin' xmax' ymax' srid' = unsafeSqlFunction "ST_MakeEnvelope" (xmin', ymin', xmax', ymax', srid')
+
+-- | Creates a linestring from two point geometries.
+--   https://postgis.net/docs/ST_MakeLine.html
+st_makeline ::
   SqlExpr (Value (Postgis 'Geometry a)) ->
   SqlExpr (Value (Postgis 'Geometry a)) ->
   SqlExpr (Value (Postgis 'Geometry a))
-st_unions a b =
-  -- casts to prevent
-  -- function st_union(unknown, unknown) is not unique", sqlErrorDetail = "", sqlErrorHint = "Could not choose a best candidate function. You might need to add explicit type casts.
-  unsafeSqlFunction "ST_union" ((unsafeSqlCastAs casted a), (unsafeSqlCastAs casted b))
-  where
-    casted = (pgType $ Proxy @'Geometry)
+st_makeline a b = unsafeSqlFunction "ST_MakeLine" (a, b)
 
--- | calculate the distance between two points
---   https://postgis.net/docs/ST_Distance.html
-st_distance ::
-  SqlExpr (Value (Postgis spatialType a)) ->
-  SqlExpr (Value (Postgis spatialType a)) ->
+-- | Creates a polygon from a closed linestring shell.
+--   Named st_makepolygon_line to avoid collision with 'makePolygon'.
+--   https://postgis.net/docs/ST_MakePolygon.html
+st_makepolygon_line ::
+  SqlExpr (Value (Postgis 'Geometry a)) ->
+  SqlExpr (Value (Postgis 'Geometry a))
+st_makepolygon_line a = unsafeSqlFunction "ST_MakePolygon" a
+
+-- ---------------------------------------------------------------------------
+-- Geometry Validation
+-- ---------------------------------------------------------------------------
+
+-- | Attempts to make an invalid geometry valid without losing vertices.
+--   https://postgis.net/docs/ST_MakeValid.html
+st_makevalid ::
+  SqlExpr (Value (Postgis 'Geometry a)) ->
+  SqlExpr (Value (Postgis 'Geometry a))
+st_makevalid a = unsafeSqlFunction "ST_MakeValid" a
+
+-- | Returns text describing why a geometry is invalid, or "Valid Geometry".
+--   https://postgis.net/docs/ST_IsValidReason.html
+st_isvalidreason ::
+  SqlExpr (Value (Postgis 'Geometry a)) ->
+  SqlExpr (Value Text)
+st_isvalidreason a = unsafeSqlFunction "ST_IsValidReason" a
+
+-- ---------------------------------------------------------------------------
+-- SRS Functions
+-- ---------------------------------------------------------------------------
+
+-- | Sets the SRID on a geometry to a particular integer value.
+--   https://postgis.net/docs/ST_SetSRID.html
+st_setsrid ::
+  SqlExpr (Value (Postgis 'Geometry a)) ->
+  SqlExpr (Value Int) ->
+  SqlExpr (Value (Postgis 'Geometry a))
+st_setsrid a srid' = unsafeSqlFunction "ST_SetSRID" (a, srid')
+
+-- ---------------------------------------------------------------------------
+-- Geometry Output
+-- ---------------------------------------------------------------------------
+
+-- | Returns the Well-Known Text (WKT) representation of the geometry.
+--   https://postgis.net/docs/ST_AsText.html
+st_astext ::
+  SqlExpr (Value (Postgis 'Geometry a)) ->
+  SqlExpr (Value Text)
+st_astext a = unsafeSqlFunction "ST_AsText" a
+
+-- | Returns the GeoJSON representation of the geometry.
+--   https://postgis.net/docs/ST_AsGeoJSON.html
+st_asgeojson ::
+  SqlExpr (Value (Postgis 'Geometry a)) ->
+  SqlExpr (Value Text)
+st_asgeojson a = unsafeSqlFunction "ST_AsGeoJSON" a
+
+-- | Returns the Extended Well-Known Text (EWKT) representation of the geometry.
+--   https://postgis.net/docs/ST_AsEWKT.html
+st_asewkt ::
+  SqlExpr (Value (Postgis 'Geometry a)) ->
+  SqlExpr (Value Text)
+st_asewkt a = unsafeSqlFunction "ST_AsEWKT" a
+
+-- | Returns a GeoHash representation of the geometry.
+--   https://postgis.net/docs/ST_GeoHash.html
+st_geohash ::
+  SqlExpr (Value (Postgis 'Geometry a)) ->
+  SqlExpr (Value Text)
+st_geohash a = unsafeSqlFunction "ST_GeoHash" a
+
+-- ---------------------------------------------------------------------------
+-- Affine Transformations
+-- ---------------------------------------------------------------------------
+
+-- | Translates a geometry by given X and Y offsets.
+--   https://postgis.net/docs/ST_Translate.html
+st_translate ::
+  SqlExpr (Value (Postgis 'Geometry a)) ->
+  SqlExpr (Value Double) -> -- ^ deltaX
+  SqlExpr (Value Double) -> -- ^ deltaY
+  SqlExpr (Value (Postgis 'Geometry a))
+st_translate a dx dy = unsafeSqlFunction "ST_Translate" (a, dx, dy)
+
+-- | Scales a geometry by given X and Y factors.
+--   https://postgis.net/docs/ST_Scale.html
+st_scale ::
+  SqlExpr (Value (Postgis 'Geometry a)) ->
+  SqlExpr (Value Double) -> -- ^ scaleX
+  SqlExpr (Value Double) -> -- ^ scaleY
+  SqlExpr (Value (Postgis 'Geometry a))
+st_scale a sx sy = unsafeSqlFunction "ST_Scale" (a, sx, sy)
+
+-- | Rotates a geometry around the origin by an angle in radians.
+--   https://postgis.net/docs/ST_Rotate.html
+st_rotate ::
+  SqlExpr (Value (Postgis 'Geometry a)) ->
+  SqlExpr (Value Double) -> -- ^ angle in radians
+  SqlExpr (Value (Postgis 'Geometry a))
+st_rotate a angle = unsafeSqlFunction "ST_Rotate" (a, angle)
+
+-- | Rotates a geometry around the X axis by an angle in radians.
+--   https://postgis.net/docs/ST_RotateX.html
+st_rotatex ::
+  SqlExpr (Value (Postgis 'Geometry a)) ->
+  SqlExpr (Value Double) -> -- ^ angle in radians
+  SqlExpr (Value (Postgis 'Geometry a))
+st_rotatex a angle = unsafeSqlFunction "ST_RotateX" (a, angle)
+
+-- | Rotates a geometry around the Z axis by an angle in radians.
+--   https://postgis.net/docs/ST_RotateZ.html
+st_rotatez ::
+  SqlExpr (Value (Postgis 'Geometry a)) ->
+  SqlExpr (Value Double) -> -- ^ angle in radians
+  SqlExpr (Value (Postgis 'Geometry a))
+st_rotatez a angle = unsafeSqlFunction "ST_RotateZ" (a, angle)
+
+-- ---------------------------------------------------------------------------
+-- Bounding Box
+-- ---------------------------------------------------------------------------
+
+-- | Returns a bounding box expanded in all directions by a given distance.
+--   https://postgis.net/docs/ST_Expand.html
+st_expand ::
+  SqlExpr (Value (Postgis 'Geometry a)) ->
+  SqlExpr (Value Double) ->
+  SqlExpr (Value (Postgis 'Geometry a))
+st_expand a d = unsafeSqlFunction "ST_Expand" (a, d)
+
+-- ---------------------------------------------------------------------------
+-- Linear Referencing
+-- ---------------------------------------------------------------------------
+
+-- | Returns a point interpolated along a line at a fractional distance (0.0 to 1.0).
+--   https://postgis.net/docs/ST_LineInterpolatePoint.html
+st_lineinterpolatepoint ::
+  SqlExpr (Value (Postgis 'Geometry a)) ->
+  SqlExpr (Value Double) -> -- ^ fraction (0.0 to 1.0)
+  SqlExpr (Value (Postgis 'Geometry a))
+st_lineinterpolatepoint a f = unsafeSqlFunction "ST_LineInterpolatePoint" (a, f)
+
+-- | Returns a float between 0 and 1 representing the location of the closest point on a line to a given point.
+--   https://postgis.net/docs/ST_LineLocatePoint.html
+st_linelocatepoint ::
+  SqlExpr (Value (Postgis 'Geometry a)) -> -- ^ line
+  SqlExpr (Value (Postgis 'Geometry a)) -> -- ^ point
   SqlExpr (Value Double)
-st_distance a b =
-  unsafeSqlFunction "ST_distance" (a, b)
+st_linelocatepoint a b = unsafeSqlFunction "ST_LineLocatePoint" (a, b)
 
--- | Returns true if two geometries intersect.
---   Geometries intersect if they have any point in common.
---   https://postgis.net/docs/ST_Intersects.html
-st_intersects ::
-  SqlExpr (Value (Postgis spatialType a)) -> -- ^ geomA or geogA
-  SqlExpr (Value (Postgis spatialType a)) -> -- ^ geomB or geogB
-  SqlExpr (Value Bool)
-st_intersects a b = unsafeSqlFunction "ST_Intersects" (a, b)
+-- | Returns the portion of a line between two fractional locations (0.0 to 1.0).
+--   https://postgis.net/docs/ST_LineSubstring.html
+st_linesubstring ::
+  SqlExpr (Value (Postgis 'Geometry a)) ->
+  SqlExpr (Value Double) -> -- ^ start fraction
+  SqlExpr (Value Double) -> -- ^ end fraction
+  SqlExpr (Value (Postgis 'Geometry a))
+st_linesubstring a s e = unsafeSqlFunction "ST_LineSubstring" (a, s, e)
 
 point ::
   Double -> -- ^ x or longitude

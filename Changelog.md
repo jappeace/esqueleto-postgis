@@ -1,6 +1,36 @@
 # Change log for esqueleto-postgis project
 
-## Version 4.0.3 
+## Version 4.1.0
++ Add 95 PostGIS function bindings covering the bulk of the PostGIS 3.6 geometry API.
++ Geometry constructors: `st_collect`, `st_makeenvelope`, `st_makeline`, `st_makepolygon_line`.
++ Geometry accessors: `st_boundary`, `st_coorddim`, `st_endpoint`, `st_exteriorring`,
+  `st_geometryn`, `st_geometrytype`, `st_interiorringn`, `st_iscollection`, `st_isempty`,
+  `st_ispolygonccw`, `st_ispolygoncw`, `st_isring`, `st_m`, `st_ndims`, `st_nrings`,
+  `st_numinteriorrings`, `st_numpoints`, `st_pointn`, `st_startpoint`, `st_z`.
++ Geometry editors: `st_addpoint`, `st_collectionextract`, `st_flipcoordinates`,
+  `st_force2d`, `st_force3d`, `st_force4d`, `st_forcecollection`,
+  `st_forcepolygonccw`, `st_forcepolygoncw`, `st_multi`, `st_normalize`,
+  `st_reverse`, `st_segmentize`, `st_setpoint`, `st_snaptogrid`, `st_snap`.
++ Geometry validation: `st_makevalid`, `st_isvalidreason`.
++ SRS: `st_setsrid`.
++ Geometry output: `st_astext`, `st_asgeojson`, `st_asewkt`, `st_geohash`.
++ Spatial relationships: `st_3dintersects`, `st_relate`, `st_orderingequals`,
+  `st_dfullywithin`, `st_pointinsidecircle`.
++ Measurements: `st_angle`, `st_closestpoint`, `st_3dclosestpoint`, `st_3ddistance`,
+  `st_distancesphere`, `st_frechetdistance`, `st_hausdorffdistance`, `st_length2d`,
+  `st_3dlength`, `st_longestline`, `st_3dlongestline`, `st_3dmaxdistance`,
+  `st_minimumclearance`, `st_shortestline`, `st_3dshortestline`.
++ Overlay functions: `st_symdifference`, `st_unaryunion`, `st_split`, `st_node`.
++ Geometry processing: `st_buildarea`, `st_chaikinsmoothing`, `st_concavehull`,
+  `st_delaunaytriangles`, `st_generatepoints`, `st_geometricmedian`, `st_linemerge`,
+  `st_minimumboundingcircle`, `st_offsetcurve`, `st_reduceprecision`, `st_sharedpaths`,
+  `st_simplify`, `st_simplifypreservetopology`, `st_voronoilines`, `st_voronoipolygons`.
++ Affine transformations: `st_translate`, `st_scale`, `st_rotate`, `st_rotatex`, `st_rotatez`.
++ Bounding box: `st_expand`.
++ Linear referencing: `st_lineinterpolatepoint`, `st_linelocatepoint`, `st_linesubstring`.
++ Integration test for every new function.
+
+## Version 4.0.3
 + add comments on x and y, z and m.
 
 ## Version 4.0.2 
