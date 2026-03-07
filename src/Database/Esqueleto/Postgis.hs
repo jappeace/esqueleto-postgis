@@ -15,8 +15,7 @@
 --   You don't have to use Geography if you're only interested in
 --   topological functions such as 'st_intersects' and 'st_union',
 --   these are indifferent to space distortions,
---   see <https://www.gdmc.nl/publications/2013/3D_Geo-DBMS_Topological_Operators.pdf>
---   the related work section.
+--   see <https://jappie.me/announcement-esqueleto-postgis-v4.html>
 --
 --   if you can't use a function for example when you're using 'Geography'.
 --   there is the option to 'st_transform_geography'.
