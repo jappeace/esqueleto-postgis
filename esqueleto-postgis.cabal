@@ -79,6 +79,12 @@ library
       Database.Esqueleto.Postgis.Ewkb
       Database.Esqueleto.Postgis.Wkb
   other-modules:
+      Database.Esqueleto.Postgis.Geometry
+      Database.Esqueleto.Postgis.Accessor
+      Database.Esqueleto.Postgis.Editor
+      Database.Esqueleto.Postgis.Spatial
+      Database.Esqueleto.Postgis.Measurement
+      Database.Esqueleto.Postgis.Processing
       Database.Esqueleto.Postgis.Wkb.Endian
       Database.Esqueleto.Postgis.Wkb.Point
       Database.Esqueleto.Postgis.Wkb.Geometry
