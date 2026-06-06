@@ -1,0 +1,5 @@
+packages: .
+
+-- geojson-4.1.3 uses Validation.Validate, which was renamed/removed in
+-- validation >= 1.2. Cap until geojson catches up.
+constraints: validation < 1.2
