@@ -19,7 +19,7 @@ in
           )
           print(
               server.succeed(
-                  "${package}/bin/test/unit"
+                  "${package.test}/unit"
               )
           )
         '';
