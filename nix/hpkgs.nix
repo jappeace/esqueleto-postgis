@@ -7,18 +7,17 @@
 pkgs.haskellPackages.override {
   overrides = hnew: hold: {
     esqueleto-postgis =
-      pkgs.haskell.lib.overrideCabal (hnew.callCabal2nix "esqueleto-postgis" ../. { })
-        {
-          postBuild = ''
-            echo "entering the phase"
-            mkdir -p $out/bin/test
-            cp ./dist/build/unit/unit $out/bin/test/unit
-          '';
-
-          checkPhase = ''
-            echo "ran by flake :)"
-          '';
-        };
+      let
+        nom = hnew.callCabal2nix "esqueleto-postgis" ../. { };
+      in
+      nom.overrideAttrs (oldAttrs: {
+        outputs = (oldAttrs.outputs or [ "out" ]) ++ [ "test" ];
+        postBuild = (oldAttrs.postBuild or "") + ''
+          mkdir -p $test
+          cp ./dist/build/unit/unit $test/unit
+        '';
+        checkPhase = "";
+      });
     geojson = pkgs.haskell.lib.doJailbreak (pkgs.haskell.lib.markUnbroken hold.geojson);
   };
 }
