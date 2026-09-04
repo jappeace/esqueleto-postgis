@@ -1,4 +1,4 @@
-[![https://jappieklooster.nl](https://img.shields.io/badge/blog-jappieklooster.nl-lightgrey)](https://jappieklooster.nl/tag/haskell.html)
+[![https://jappie.me](https://img.shields.io/badge/blog-jappie.me-lightgrey)](https://jappie.me/tag/haskell.html)
 [![Github actions build status](https://img.shields.io/github/actions/workflow/status/jappeace/esqueleto-postgis/nix.yaml?branch=master)](https://github.com/jappeace/esqueleto-postgis/actions)
 [![Jappiejappie](https://img.shields.io/badge/discord-jappiejappie-black?logo=discord)](https://discord.gg/Hp4agqy)
 [![Hackage version](https://img.shields.io/hackage/v/esqueleto-postgis.svg?label=Hackage)](https://hackage.haskell.org/package/esqueleto-postgis) 
